@@ -105,4 +105,27 @@ router.get("/my-sales", protect, async (req, res) => {
   }
 });
 
+// ✅ GET PUBLIC PROFILE OF AN ARTIST (Necessary Change for Homepage/Artist Profiles)
+router.get("/artist/:id", async (req, res) => {
+  try {
+    const artist = await User.findById(req.params.id)
+      .select("-password") // Safety: Never send passwords
+      .populate("followers", "name"); // Show names of people following
+
+    if (!artist || artist.role !== "artist") {
+      return res.status(404).json({ message: "Artist not found" });
+    }
+
+    // Fetch all artworks belonging to this specific artist
+    const artworks = await Art.find({ artist: req.params.id });
+
+    res.json({
+      artist,
+      artworks
+    });
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+});
+
 export default router;

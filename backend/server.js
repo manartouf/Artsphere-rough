@@ -1,3 +1,4 @@
+import publicRoutes from "./routes/publicRoutes.js";
 import userRoutes from "./routes/userRoutes.js";
 import adminRoutes from "./routes/adminRoutes.js";
 import exhibitionRoutes from "./routes/exhibitionRoutes.js";
@@ -37,6 +38,7 @@ app.use("/api/art", artRoutes);
 app.use("/api/exhibitions", exhibitionRoutes);
 app.use("/api/admin", adminRoutes);
 app.use("/api/users", userRoutes);
+app.use("/api/public", publicRoutes);
 
 /* -------------------- ADMIN TEST ROUTE -------------------- */
 app.get("/api/admin-test", protect, adminOnly, (req, res) => {

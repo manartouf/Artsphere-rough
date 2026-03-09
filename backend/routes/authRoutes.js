@@ -7,7 +7,8 @@ const router = express.Router();
 
 // REGISTER
 router.post("/register", async (req, res) => {
-  const { name, email, password, role } = req.body;
+  // Added aboutMe and lookingFor to the destructuring
+  const { name, email, password, role, aboutMe, lookingFor } = req.body;
 
   try {
     const userExists = await User.findOne({ email });
@@ -21,6 +22,8 @@ router.post("/register", async (req, res) => {
       email,
       password: hashedPassword,
       role,
+      aboutMe: role === "artist" ? aboutMe : "",
+      lookingFor: role === "buyer" ? lookingFor : "",
     });
 
     res.status(201).json(user);

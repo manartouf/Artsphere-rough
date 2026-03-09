@@ -11,6 +11,10 @@ const userSchema = new mongoose.Schema(
       default: "buyer",
     },
 
+    // ✅ New Fields for Registration
+    aboutMe: { type: String, default: "" },      // Used by Artists
+    lookingFor: { type: String, default: "" },   // Used by Buyers
+
     // ✅ Followers (people who follow this user)
     followers: [
       {

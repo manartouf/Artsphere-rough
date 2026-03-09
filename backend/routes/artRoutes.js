@@ -1,15 +1,14 @@
 import { io } from "../server.js";
 import express from "express";
 import Art from "../models/Art.js";
-import User from "../models/User.js"; // ✅ ADDED
+import User from "../models/User.js";
 import { protect, authorize } from "../middleware/authMiddleware.js";
 import upload from "../middleware/uploadMiddleware.js";
 import cloudinary from "../config/cloudinary.js";
 
 const router = express.Router();
 
-
-// CREATE ART (Only logged-in users + image upload)
+// CREATE ART
 router.post("/", protect, authorize("artist"), upload.single("image"), async (req, res) => {
   try {
     const { 
@@ -19,7 +18,8 @@ router.post("/", protect, authorize("artist"), upload.single("image"), async (re
       price, 
       isAuction,
       auctionStartPrice,
-      auctionDurationHours
+      auctionDurationHours,
+      exhibitionType // ✅ Extracted from body
     } = req.body;
 
     let imageUrl = "";
@@ -31,6 +31,7 @@ router.post("/", protect, authorize("artist"), upload.single("image"), async (re
         category,
         price,
         isAuction,
+        exhibitionType: exhibitionType || "buy", // ✅ Saved to DB
         auctionStartPrice: isAuction ? auctionStartPrice || 0 : 0,
         currentBid: isAuction ? auctionStartPrice || 0 : 0,
         auctionEndTime: isAuction
@@ -43,7 +44,7 @@ router.post("/", protect, authorize("artist"), upload.single("image"), async (re
       // 🔔 Notify followers
       const artist = await User.findById(req.user.id);
 
-      if (artist.followers.length > 0) {
+      if (artist && artist.followers.length > 0) {
         await User.updateMany(
           { _id: { $in: artist.followers } },
           {
@@ -82,7 +83,6 @@ router.post("/", protect, authorize("artist"), upload.single("image"), async (re
   }
 });
 
-
 // GET ALL ART (ONLY APPROVED)
 router.get("/", async (req, res) => {
   try {
@@ -96,133 +96,119 @@ router.get("/", async (req, res) => {
   }
 });
 
+// ✅ NEW: TOGGLE ADMIRE (LIKE) ARTWORK
+router.put("/:id/admire", protect, async (req, res) => {
+  try {
+    const art = await Art.findById(req.params.id);
+    if (!art) return res.status(404).json({ message: "Art not found" });
 
-// PLACE BID (Auction Only)
+    const userId = req.user.id;
+    if (art.admirers.includes(userId)) {
+      // Remove admiration
+      art.admirers = art.admirers.filter((id) => id.toString() !== userId);
+      await art.save();
+      return res.json({ message: "Unadmired", admirersCount: art.admirers.length });
+    } else {
+      // Add admiration
+      art.admirers.push(userId);
+      await art.save();
+      return res.json({ message: "Admired!", admirersCount: art.admirers.length });
+    }
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+});
+
+// PLACE BID
 router.post("/:id/bid", protect, async (req, res) => {
   try {
     const { amount } = req.body;
-
     const art = await Art.findById(req.params.id);
 
-    if (!art) {
-      return res.status(404).json({ message: "Art not found" });
-    }
+    if (!art) return res.status(404).json({ message: "Art not found" });
+    if (!art.isAuction) return res.status(400).json({ message: "Not an auction" });
+    if (art.auctionStatus !== "active") return res.status(400).json({ message: "Auction inactive" });
+    if (art.artist.toString() === req.user.id) return res.status(400).json({ message: "Cannot bid on own art" });
 
-    if (!art.isAuction) {
-      return res.status(400).json({ message: "This item is not an auction" });
-    }
-
-    if (art.auctionStatus !== "active") {
-      return res.status(400).json({
-        message: "Auction is not active",
-      });
-    }
-
-    if (art.artist.toString() === req.user.id) {
-      return res.status(400).json({
-        message: "You cannot bid on your own artwork"
-      });
-    }
-
-    // ✅ UPDATED BLOCK (Buyer saved when auction ends)
     if (art.auctionEndTime && new Date() > art.auctionEndTime) {
       art.isSold = true;
       art.soldPrice = art.currentBid;
-      art.buyer = art.highestBidder; // ✅ ADDED
+      art.buyer = art.highestBidder;
       await art.save();
-
       io.emit("auctionEnded", art);
-
-      return res.status(400).json({
-        message: "Auction has ended"
-      });
+      return res.status(400).json({ message: "Auction has ended" });
     }
 
-    if (art.isSold) {
-      return res.status(400).json({ message: "Auction already closed" });
-    }
-
-    if (amount <= art.currentBid) {
-      return res.status(400).json({
-        message: "Bid must be higher than current bid",
-      });
-    }
+    if (art.isSold) return res.status(400).json({ message: "Already closed" });
+    if (amount <= art.currentBid) return res.status(400).json({ message: "Bid too low" });
 
     art.currentBid = amount;
-    art.bids.push({
-      bidder: req.user.id,
-      amount,
-    });
-
+    art.bids.push({ bidder: req.user.id, amount });
     art.highestBidder = req.user.id;
 
     await art.save();
-
     io.emit("bidUpdate", art);
 
-    res.json({
-      message: "Bid placed successfully",
-      currentBid: art.currentBid,
-      highestBidder: art.highestBidder
-    });
-
+    res.json({ message: "Bid placed successfully", currentBid: art.currentBid });
   } catch (error) {
     res.status(500).json({ message: error.message });
   }
 });
 
+// DIRECT PURCHASE
+router.post("/:id/buy", protect, async (req, res) => {
+  try {
+    const art = await Art.findById(req.params.id);
+    if (!art) return res.status(404).json({ message: "Art not found" });
+    
+    // ✅ NEW: Block purchase for View-Only items
+    if (art.exhibitionType === "view-only") {
+      return res.status(400).json({ message: "This artwork is for viewing only." });
+    }
 
-// UPDATE ART (Only owner)
+    if (art.isAuction) return res.status(400).json({ message: "Use bidding for this item" });
+    if (art.isSold) return res.status(400).json({ message: "Already sold" });
+
+    art.isSold = true;
+    art.buyer = req.user.id;
+    art.soldPrice = art.price;
+
+    await art.save();
+    res.json({ message: "Purchase successful", art });
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+});
+
+// UPDATE ART
 router.put("/:id", protect, async (req, res) => {
   try {
     const art = await Art.findById(req.params.id);
+    if (!art) return res.status(404).json({ message: "Art not found" });
+    if (art.artist.toString() !== req.user.id) return res.status(403).json({ message: "Not authorized" });
 
-    if (!art) {
-      return res.status(404).json({ message: "Art not found" });
-    }
-
-    if (art.artist.toString() !== req.user.id) {
-      return res.status(403).json({ message: "Not authorized" });
-    }
-
-    const updatedArt = await Art.findByIdAndUpdate(
-      req.params.id,
-      req.body,
-      { new: true }
-    );
-
+    const updatedArt = await Art.findByIdAndUpdate(req.params.id, req.body, { new: true });
     res.json(updatedArt);
-
   } catch (error) {
     res.status(500).json({ message: error.message });
   }
 });
 
-
-// DELETE ART (Only owner)
+// DELETE ART
 router.delete("/:id", protect, async (req, res) => {
   try {
     const art = await Art.findById(req.params.id);
-
-    if (!art) {
-      return res.status(404).json({ message: "Art not found" });
-    }
-
-    if (art.artist.toString() !== req.user.id) {
-      return res.status(403).json({ message: "Not authorized" });
-    }
+    if (!art) return res.status(404).json({ message: "Art not found" });
+    if (art.artist.toString() !== req.user.id) return res.status(403).json({ message: "Not authorized" });
 
     await art.deleteOne();
-
     res.json({ message: "Art deleted successfully" });
-
   } catch (error) {
     res.status(500).json({ message: error.message });
   }
 });
 
-
-// GET ACTIVE AUCTIONS (ONLY APPROVED)
+// GET ACTIVE AUCTIONS
 router.get("/auctions/active", async (req, res) => {
   try {
     const activeAuctions = await Art.find({

@@ -24,6 +24,21 @@ const artSchema = new mongoose.Schema(
       default: false,
     },
 
+    // ✅ NEW: Exhibition Type (Social/Gallery update)
+    exhibitionType: {
+      type: String,
+      enum: ["view-only", "buy", "hybrid"],
+      default: "buy",
+    },
+
+    // ✅ NEW: Admirers (Like system)
+    admirers: [
+      {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: "User",
+      },
+    ],
+
     // ✅ Added for auction system
     auctionStartPrice: {
       type: Number,

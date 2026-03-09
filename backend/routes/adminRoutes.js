@@ -4,6 +4,7 @@ import adminOnly from "../middleware/adminMiddleware.js";
 import User from "../models/User.js";
 import Art from "../models/Art.js";
 import Exhibition from "../models/Exhibition.js";
+import Category from "../models/Category.js"; // ✅ Added for Step 2/3
 
 const router = express.Router();
 
@@ -108,6 +109,34 @@ router.get("/exhibitions", protect, adminOnly, async (req, res) => {
   }
 });
 
+// ✅ APPROVE EXHIBITION
+router.put("/exhibitions/:id/approve", protect, adminOnly, async (req, res) => {
+  try {
+    const exhibition = await Exhibition.findById(req.params.id);
+    if (!exhibition) return res.status(404).json({ message: "Exhibition not found" });
+
+    exhibition.status = "approved";
+    await exhibition.save();
+    res.json({ message: "Exhibition approved successfully" });
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+});
+
+// ✅ REJECT EXHIBITION
+router.put("/exhibitions/:id/reject", protect, adminOnly, async (req, res) => {
+  try {
+    const exhibition = await Exhibition.findById(req.params.id);
+    if (!exhibition) return res.status(404).json({ message: "Exhibition not found" });
+
+    exhibition.status = "rejected";
+    await exhibition.save();
+    res.json({ message: "Exhibition rejected successfully" });
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+});
+
 // Delete exhibition
 router.delete("/exhibitions/:id", protect, adminOnly, async (req, res) => {
   try {
@@ -143,7 +172,40 @@ router.put("/artworks/:id/end", protect, adminOnly, async (req, res) => {
   }
 });
 
-// ================= ADMIN ANALYTICS =================
+/* ================= CATEGORY MANAGEMENT (Step 3) ================= */
+
+// Create a new category
+router.post("/categories", protect, adminOnly, async (req, res) => {
+  try {
+    const { name } = req.body;
+    const category = await Category.create({ name });
+    res.status(201).json(category);
+  } catch (error) {
+    res.status(500).json({ message: "Category already exists or server error" });
+  }
+});
+
+// Get all categories
+router.get("/categories", async (req, res) => {
+  try {
+    const categories = await Category.find();
+    res.json(categories);
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+});
+
+// Delete a category
+router.delete("/categories/:id", protect, adminOnly, async (req, res) => {
+  try {
+    await Category.findByIdAndDelete(req.params.id);
+    res.json({ message: "Category deleted" });
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+});
+
+/* ================= ADMIN ANALYTICS (Step 1 Updated) ================= */
 
 router.get("/analytics", protect, adminOnly, async (req, res) => {
   try {
@@ -154,14 +216,25 @@ router.get("/analytics", protect, adminOnly, async (req, res) => {
       isAuction: true,
       auctionStatus: "active",
     });
-    const soldArtworks = await Art.countDocuments({ isSold: true });
+    
+    // ✅ Revenue Tracking Added
+    const salesData = await Art.find({ isSold: true });
+    const totalRevenue = salesData.reduce((acc, item) => acc + (item.soldPrice || 0), 0);
+    const soldCount = salesData.length;
+
+    // ✅ Category Breakdown Added
+    const categoryStats = await Art.aggregate([
+      { $group: { _id: "$category", count: { $sum: 1 } } }
+    ]);
 
     res.json({
       totalUsers,
       totalArtworks,
       totalAuctions,
       activeAuctions,
-      soldArtworks,
+      totalRevenue,
+      soldCount,
+      categoryStats
     });
   } catch (error) {
     res.status(500).json({ message: error.message });
