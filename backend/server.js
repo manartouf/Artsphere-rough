@@ -1,3 +1,5 @@
+import auctionRoutes from './routes/auctionRoutes.js';
+import collectionRoutes from './routes/collectionRoutes.js';
 import publicRoutes from "./routes/publicRoutes.js";
 import userRoutes from "./routes/userRoutes.js";
 import adminRoutes from "./routes/adminRoutes.js";
@@ -39,6 +41,8 @@ app.use("/api/exhibitions", exhibitionRoutes);
 app.use("/api/admin", adminRoutes);
 app.use("/api/users", userRoutes);
 app.use("/api/public", publicRoutes);
+app.use('/api/collections', collectionRoutes);
+app.use('/api/auctions', auctionRoutes); 
 
 /* -------------------- ADMIN TEST ROUTE -------------------- */
 app.get("/api/admin-test", protect, adminOnly, (req, res) => {

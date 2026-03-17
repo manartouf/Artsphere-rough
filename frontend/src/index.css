@@ -1,0 +1,7 @@
+@import "tailwindcss";
+
+/* This makes sure your background is always dark across the whole site */
+body {
+  background-color: #1a1a2e;
+  color: white;
+}

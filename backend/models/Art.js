@@ -7,7 +7,8 @@ const artSchema = new mongoose.Schema(
       required: true,
     },
     description: String,
-    image: String,
+    image: String, // For old Postman data
+    imageUrl: String, // NEW: For Cloudinary uploads from the frontend
 
     category: {
       type: String,

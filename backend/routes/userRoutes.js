@@ -5,6 +5,35 @@ import Art from "../models/Art.js";
 
 const router = express.Router();
 
+// ✅ UPDATE MY PROFILE (Added this to fix the "Failed to update" error)
+router.put("/profile", protect, async (req, res) => {
+  try {
+    const user = await User.findById(req.user.id);
+
+    if (user) {
+      user.name = req.body.name || user.name;
+      user.aboutMe = req.body.aboutMe || user.aboutMe;
+      user.lookingFor = req.body.lookingFor || user.lookingFor;
+
+      const updatedUser = await user.save();
+      res.json({
+        user: {
+          _id: updatedUser._id,
+          name: updatedUser.name,
+          email: updatedUser.email,
+          role: updatedUser.role,
+          aboutMe: updatedUser.aboutMe,
+          lookingFor: updatedUser.lookingFor,
+        },
+      });
+    } else {
+      res.status(404).json({ message: "User not found" });
+    }
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+});
+
 // FOLLOW ARTIST
 router.put("/follow/:id", protect, async (req, res) => {
   try {
@@ -105,18 +134,17 @@ router.get("/my-sales", protect, async (req, res) => {
   }
 });
 
-// ✅ GET PUBLIC PROFILE OF AN ARTIST (Necessary Change for Homepage/Artist Profiles)
+// ✅ GET PUBLIC PROFILE OF AN ARTIST
 router.get("/artist/:id", async (req, res) => {
   try {
     const artist = await User.findById(req.params.id)
-      .select("-password") // Safety: Never send passwords
-      .populate("followers", "name"); // Show names of people following
+      .select("-password") 
+      .populate("followers", "name"); 
 
     if (!artist || artist.role !== "artist") {
       return res.status(404).json({ message: "Artist not found" });
     }
 
-    // Fetch all artworks belonging to this specific artist
     const artworks = await Art.find({ artist: req.params.id });
 
     res.json({
