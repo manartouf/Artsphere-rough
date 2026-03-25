@@ -1,12 +1,26 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import API from '../api/axiosConfig';
 import toast from 'react-hot-toast';
 import { useNavigate } from 'react-router-dom';
 
 const UploadArt = () => {
   const [file, setFile] = useState(null);
-  const [formData, setFormData] = useState({ title: '', description: '', price: '', category: 'Painting' });
+  const [categories, setCategories] = useState([]);
+  const [formData, setFormData] = useState({ title: '', description: '', price: '', category: '' });
   const navigate = useNavigate();
+
+  useEffect(() => {
+    const fetchCategories = async () => {
+      try {
+        const { data } = await API.get('/admin/categories');
+        setCategories(data);
+        if (data.length > 0) setFormData(prev => ({ ...prev, category: data[0].name }));
+      } catch {
+        // silently fail
+      }
+    };
+    fetchCategories();
+  }, []);
 
   const handleUpload = async (e) => {
     e.preventDefault();
@@ -22,7 +36,7 @@ const UploadArt = () => {
     // Hidden defaults to match database schema requirements
     data.append("isAuction", false);
     data.append("auctionStatus", "inactive");
-    data.append("status", "approved"); // Changed to approved so it shows up instantly
+    data.append("status", "approved");
 
     const loadingToast = toast.loading("Uploading masterpiece...");
     try {
@@ -55,6 +69,20 @@ const UploadArt = () => {
           onChange={(e) => setFormData({...formData, description: e.target.value})} required />
         <input type="number" placeholder="Price ($)" className="w-full p-3 bg-[#16162a] rounded border border-gray-700 text-white" 
           onChange={(e) => setFormData({...formData, price: e.target.value})} required />
+        <div>
+          <label className="block mb-2 text-gray-400">Category</label>
+          <select
+            value={formData.category}
+            onChange={(e) => setFormData({...formData, category: e.target.value})}
+            className="w-full p-3 bg-[#16162a] rounded border border-gray-700 text-white outline-none focus:border-[#6c3483] transition"
+            required
+          >
+            <option value="">Select a category</option>
+            {categories.map(cat => (
+              <option key={cat._id} value={cat.name}>{cat.name}</option>
+            ))}
+          </select>
+        </div>
         <button type="submit" className="w-full bg-[#6c3483] py-3 rounded font-bold hover:bg-opacity-90 text-white text-xl">
           Upload to Gallery
         </button>

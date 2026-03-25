@@ -11,11 +11,14 @@ const userSchema = new mongoose.Schema(
       default: "buyer",
     },
 
-    // ✅ New Fields for Registration
-    aboutMe: { type: String, default: "" },      // Used by Artists
-    lookingFor: { type: String, default: "" },   // Used by Buyers
+    // New Fields for Registration
+    aboutMe: { type: String, default: "" },
+    lookingFor: { type: String, default: "" },
 
-    // ✅ Followers (people who follow this user)
+    // Wallet balance — starts at $1000
+    walletBalance: { type: Number, default: 1000 },
+
+    // Followers
     followers: [
       {
         type: mongoose.Schema.Types.ObjectId,
@@ -23,7 +26,7 @@ const userSchema = new mongoose.Schema(
       },
     ],
 
-    // ✅ Following (artists this user follows)
+    // Following
     following: [
       {
         type: mongoose.Schema.Types.ObjectId,
@@ -31,7 +34,7 @@ const userSchema = new mongoose.Schema(
       },
     ],
 
-    // ✅ In-app notifications
+    // In-app notifications
     notifications: [
       {
         message: String,

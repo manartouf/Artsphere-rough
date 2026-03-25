@@ -11,15 +11,14 @@ const router = express.Router();
 // CREATE ART
 router.post("/", protect, authorize("artist"), upload.single("image"), async (req, res) => {
   try {
-    const { 
-      title, description, category, price, 
-      isAuction, auctionStartPrice, auctionDurationHours, exhibitionType 
+    const {
+      title, description, category, price,
+      isAuction, auctionStartPrice, auctionDurationHours, exhibitionType
     } = req.body;
 
     let imageUrl = "";
 
     const createArt = async (img) => {
-      // FORCED CONVERSION: This ensures "true" (string) or true (boolean) both work
       const checkIsAuction = String(isAuction) === "true";
 
       const art = await Art.create({
@@ -28,7 +27,7 @@ router.post("/", protect, authorize("artist"), upload.single("image"), async (re
         category,
         price: Number(price),
         isAuction: checkIsAuction,
-        exhibitionType: exhibitionType || "buy", 
+        exhibitionType: exhibitionType || "buy",
         auctionStartPrice: checkIsAuction ? Number(auctionStartPrice) || 0 : 0,
         currentBid: checkIsAuction ? Number(auctionStartPrice) || 0 : 0,
         auctionEndTime: checkIsAuction
@@ -36,8 +35,7 @@ router.post("/", protect, authorize("artist"), upload.single("image"), async (re
           : null,
         imageUrl: img,
         artist: req.user.id,
-        // CRITICAL: Ensure this is EXACTLY "pending"
-        status: checkIsAuction ? "pending" : "approved", 
+        status: checkIsAuction ? "pending" : "approved",
       });
 
       const artist = await User.findById(req.user.id);
@@ -72,7 +70,6 @@ router.post("/", protect, authorize("artist"), upload.single("image"), async (re
 // ADMIN: GET ALL PENDING AUCTION REQUESTS
 router.get("/admin/requests", protect, authorize("admin"), async (req, res) => {
   try {
-    // Exact match for the query
     const requests = await Art.find({ status: "pending", isAuction: true })
       .populate("artist", "name email");
     res.json(requests);
@@ -99,16 +96,16 @@ router.put("/admin/approve/:id", protect, authorize("admin"), async (req, res) =
   }
 });
 
-// GET ALL ART (HYBRID FIX)
+// GET ALL ART — FIX: populate followers so Artists page shows correct count
 router.get("/", async (req, res) => {
   try {
     const arts = await Art.find({ status: "approved" })
-      .populate("artist", "name email role")
+      .populate("artist", "name email role aboutMe followers")
       .populate("highestBidder", "name email");
 
     const formattedArts = arts.map(art => {
       const artObj = art.toObject();
-      if (!art.artist && art._doc.artist) artObj.artist = art._doc.artist; 
+      if (!art.artist && art._doc.artist) artObj.artist = art._doc.artist;
       return artObj;
     });
     res.json(formattedArts);
@@ -117,12 +114,13 @@ router.get("/", async (req, res) => {
   }
 });
 
-// GET SINGLE ARTWORK BY ID
+// GET SINGLE ARTWORK BY ID — FIX: populate followers + bids.bidder
 router.get("/:id", async (req, res) => {
   try {
     const art = await Art.findById(req.params.id)
-      .populate("artist", "name email role")
-      .populate("highestBidder", "name email");
+      .populate("artist", "name email role aboutMe followers")
+      .populate("highestBidder", "name email")
+      .populate("bids.bidder", "name");
     if (!art) return res.status(404).json({ message: "Artwork not found" });
     const artObj = art.toObject();
     if (!art.artist && art._doc.artist) artObj.artist = art._doc.artist;
@@ -132,7 +130,7 @@ router.get("/:id", async (req, res) => {
   }
 });
 
-// TOGGLE ADMIRE (LIKE) ARTWORK
+// TOGGLE ADMIRE
 router.put("/:id/admire", protect, async (req, res) => {
   try {
     const art = await Art.findById(req.params.id);
@@ -150,34 +148,94 @@ router.put("/:id/admire", protect, async (req, res) => {
   }
 });
 
-// PLACE BID
+// PLACE BID — FIX: use auctionStartPrice for increment, emit artId + totalBids
 router.post("/:id/bid", protect, async (req, res) => {
   try {
     const { amount } = req.body;
     const art = await Art.findById(req.params.id);
-    if (!art || !art.isAuction || art.status !== "approved") return res.status(400).json({ message: "Auction not available" });
-    if (Number(amount) <= art.currentBid) return res.status(400).json({ message: "Bid too low" });
+
+    if (!art || !art.isAuction || art.status !== "approved") {
+      return res.status(400).json({ message: "Auction not available" });
+    }
+
+    if (art.isSold) {
+      return res.status(400).json({ message: "This artwork has already been sold" });
+    }
+
+    if (art.auctionEndTime && new Date() > new Date(art.auctionEndTime)) {
+      return res.status(400).json({ message: "Auction time has expired" });
+    }
+
+    const startPrice = art.auctionStartPrice || 0;
+    const increment = Math.ceil(startPrice * 0.1) || 1;
+    const expectedBid = startPrice + (increment * (art.bids.length + 1));
+
+    if (Number(amount) < expectedBid) {
+      return res.status(400).json({ message: `Minimum bid is $${expectedBid}` });
+    }
+
+    const bidder = await User.findById(req.user.id);
+    if (bidder.walletBalance < Number(amount)) {
+      return res.status(400).json({ message: "Insufficient wallet balance" });
+    }
+
     art.currentBid = Number(amount);
     art.bids.push({ bidder: req.user.id, amount: Number(amount) });
     art.highestBidder = req.user.id;
     await art.save();
-    io.emit("bidUpdate", art);
+
+    io.emit("bidUpdate", {
+      artId: art._id,
+      currentBid: art.currentBid,
+      highestBidder: { _id: bidder._id, name: bidder.name },
+      bids: art.bids,
+      totalBids: art.bids.length,
+    });
+
     res.json({ message: "Bid placed", currentBid: art.currentBid });
   } catch (error) {
     res.status(500).json({ message: error.message });
   }
 });
 
-// DIRECT PURCHASE
+// DIRECT PURCHASE — FIX: block auction items, deduct wallet, notify artist
 router.post("/:id/buy", protect, async (req, res) => {
   try {
-    const art = await Art.findById(req.params.id);
-    if (!art || art.isSold || art.status !== "approved") return res.status(400).json({ message: "Not available" });
+    const art = await Art.findById(req.params.id).populate("artist");
+    if (!art || art.isSold || art.status !== "approved") {
+      return res.status(400).json({ message: "Not available" });
+    }
+
+    if (art.isAuction) {
+      return res.status(400).json({ message: "This artwork is in auction and cannot be bought directly" });
+    }
+
+    const buyer = await User.findById(req.user.id);
+    if (!buyer) return res.status(404).json({ message: "Buyer not found" });
+
+    if (buyer.walletBalance < art.price) {
+      return res.status(400).json({ message: `Insufficient wallet balance. You have $${buyer.walletBalance} but this costs $${art.price}` });
+    }
+
+    buyer.walletBalance -= art.price;
+    await buyer.save();
+
     art.isSold = true;
     art.buyer = req.user.id;
     art.soldPrice = art.price;
     await art.save();
-    res.json({ message: "Purchase successful", art });
+
+    if (art.artist?._id) {
+      await User.findByIdAndUpdate(art.artist._id, {
+        $push: {
+          notifications: {
+            message: `${buyer.name} bought your artwork "${art.title}" for $${art.price}!`
+          }
+        }
+      });
+    }
+
+    res.json({ message: "Purchase successful", art, newBalance: buyer.walletBalance });
   } catch (error) {
     res.status(500).json({ message: error.message });
   }

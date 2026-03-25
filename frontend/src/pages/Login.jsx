@@ -18,11 +18,15 @@ const Login = () => {
         try {
             const { data } = await API.post('/auth/login', { email, password });
             
-            // This saves the user to the AuthContext "Brain"
             login(data.user, data.token);
             
             toast.success(`Welcome back, ${data.user.name}!`);
-            navigate('/'); 
+
+            const role = data.user.role;
+            if (role === 'admin') navigate('/admin');
+            else if (role === 'artist') navigate('/artist/dashboard');
+            else navigate('/buyer');
+
         } catch (err) {
             toast.error(err.response?.data?.message || "Login failed. Check your credentials.");
         } finally {

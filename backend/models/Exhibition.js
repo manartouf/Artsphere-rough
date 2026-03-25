@@ -8,7 +8,7 @@ const exhibitionSchema = new mongoose.Schema(
     },
     description: {
       type: String,
-      required: true,
+      default: "",
     },
     artworks: [
       {
@@ -23,16 +23,14 @@ const exhibitionSchema = new mongoose.Schema(
     },
     startDate: {
       type: Date,
-      required: true,
     },
     endDate: {
       type: Date,
-      required: true,
     },
     status: {
       type: String,
-      enum: ["pending", "approved", "rejected"],
-      default: "pending",
+      enum: ["pending", "approved", "rejected", "active", "ended"],
+      default: "active",
     },
   },
   { timestamps: true }

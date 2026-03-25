@@ -8,17 +8,15 @@ const router = express.Router();
 router.post("/", protect, authorize("artist"), async (req, res) => {
   try {
     const { name, description, artworks } = req.body;
-    
-    // Check both _id and id to ensure the artist field is populated
     const artistId = req.user._id || req.user.id;
 
     const newCollection = await Collection.create({
       name,
-      description: description || "", 
+      description: description || "",
       artworks,
-      artist: artistId 
+      artist: artistId
     });
-    
+
     res.status(201).json(newCollection);
   } catch (error) {
     res.status(500).json({ message: error.message });
@@ -31,6 +29,33 @@ router.get("/my-collections", protect, authorize("artist"), async (req, res) => 
     const artistId = req.user._id || req.user.id;
     const collections = await Collection.find({ artist: artistId }).populate("artworks");
     res.json(collections);
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+});
+
+// Edit a collection
+router.put("/:id", protect, authorize("artist"), async (req, res) => {
+  try {
+    const artistId = req.user._id || req.user.id;
+    const collection = await Collection.findById(req.params.id);
+
+    if (!collection) {
+      return res.status(404).json({ message: "Collection not found" });
+    }
+
+    if (collection.artist.toString() !== artistId.toString()) {
+      return res.status(403).json({ message: "Not authorized" });
+    }
+
+    const { name, artworks } = req.body;
+    collection.name = name || collection.name;
+    collection.artworks = artworks || collection.artworks;
+
+    await collection.save();
+
+    const updated = await Collection.findById(req.params.id).populate("artworks");
+    res.json(updated);
   } catch (error) {
     res.status(500).json({ message: error.message });
   }

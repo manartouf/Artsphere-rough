@@ -5,7 +5,7 @@ import toast from 'react-hot-toast';
 import { useNavigate } from 'react-router-dom';
 
 const CreateCollection = () => {
-  const { user } = useContext(AuthContext); 
+  const { user } = useContext(AuthContext);
   const [myArt, setMyArt] = useState([]);
   const [selectedArt, setSelectedArt] = useState([]);
   const [name, setName] = useState('');
@@ -15,12 +15,11 @@ const CreateCollection = () => {
     const fetchMyArt = async () => {
       try {
         const { data } = await API.get('/art');
-        // Filter: Only show art where the artist ID matches the logged-in user
         const filtered = data.filter(art => {
-          const artistId = art.artist?._id || art.artist?.id || art.artist;
-          return artistId === user?._id || artistId === user?.id;
+          const artistId = String(art.artist?._id || art.artist?.id || art.artist);
+          return artistId === String(user?._id) || artistId === String(user?.id);
         });
-        setMyArt(filtered); 
+        setMyArt(filtered);
       } catch (err) {
         toast.error("Failed to load your artworks");
       }
@@ -29,7 +28,7 @@ const CreateCollection = () => {
   }, [user]);
 
   const toggleSelect = (id) => {
-    setSelectedArt(prev => 
+    setSelectedArt(prev =>
       prev.includes(id) ? prev.filter(a => a !== id) : [...prev, id]
     );
   };
@@ -38,14 +37,11 @@ const CreateCollection = () => {
     e.preventDefault();
     if (!name.trim()) return toast.error("Please enter a collection name");
     if (selectedArt.length === 0) return toast.error("Select at least one artwork");
-
     try {
-      // Sending payload to backend
-      await API.post('/collections', { 
-        name: name.trim(), 
-        artworks: selectedArt 
+      await API.post('/collections', {
+        name: name.trim(),
+        artworks: selectedArt
       });
-      
       toast.success("Collection created!");
       navigate('/profile');
     } catch (err) {
@@ -56,31 +52,40 @@ const CreateCollection = () => {
   return (
     <div className="max-w-4xl mx-auto p-8 text-white min-h-screen">
       <h2 className="text-3xl font-bold text-[#6c3483] mb-6">Build New Collection</h2>
-      <input 
-        type="text" 
+      <input
+        type="text"
         value={name}
-        placeholder="Collection Name (e.g., Cyberpunk Dreams 2026)" 
+        placeholder="Collection Name"
         className="w-full p-3 bg-[#1e1e38] border border-gray-700 rounded mb-6 outline-none focus:border-[#6c3483]"
         onChange={(e) => setName(e.target.value)}
       />
-
-      <h3 className="mb-4 text-gray-400 font-bold">Select Artworks ({selectedArt.length}):</h3>
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
-        {myArt.map(art => (
-          <div 
-            key={art._id} 
-            onClick={() => toggleSelect(art._id)}
-            className={`cursor-pointer border-2 rounded-lg overflow-hidden transition ${selectedArt.includes(art._id) ? 'border-[#6c3483] opacity-100 scale-105' : 'border-transparent opacity-60'}`}
-          >
-            <img src={art.imageUrl || art.image} alt="" className="h-32 w-full object-cover" />
-            <div className="p-2 bg-[#1e1e38]">
-              <p className="text-xs truncate font-bold">{art.title}</p>
+      <h3 className="mb-4 text-gray-400 font-bold">Select Your Artworks ({selectedArt.length}):</h3>
+      {myArt.length === 0 ? (
+        <p className="text-gray-500 italic mb-8">No artworks found. Upload some artworks first.</p>
+      ) : (
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
+          {myArt.map(art => (
+            <div
+              key={art._id}
+              onClick={() => toggleSelect(art._id)}
+              className={`cursor-pointer border-2 rounded-lg overflow-hidden transition ${
+                selectedArt.includes(art._id)
+                  ? 'border-[#6c3483] opacity-100 scale-105'
+                  : 'border-transparent opacity-60'
+              }`}
+            >
+              <img src={art.imageUrl || art.image} alt="" className="h-32 w-full object-cover" />
+              <div className="p-2 bg-[#1e1e38]">
+                <p className="text-xs truncate font-bold">{art.title}</p>
+              </div>
             </div>
-          </div>
-        ))}
-      </div>
-
-      <button onClick={handleSave} className="w-full bg-[#6c3483] py-4 rounded-lg font-bold hover:bg-opacity-80 transition">
+          ))}
+        </div>
+      )}
+      <button
+        onClick={handleSave}
+        className="w-full bg-[#6c3483] py-4 rounded-lg font-bold hover:bg-opacity-80 transition"
+      >
         Save Collection
       </button>
     </div>
