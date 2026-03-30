@@ -25,13 +25,17 @@ const server = http.createServer(app);
 
 const io = new Server(server, {
   cors: {
-    origin: "*", // later replace with frontend URL
+    origin: ["http://localhost:5173", "https://artsphere-full-stack-real-time-art-auction-curation-otg1et5ya.vercel.app"], 
     methods: ["GET", "POST"],
+    credentials: true
   },
 });
 
 /* -------------------- MIDDLEWARE -------------------- */
-app.use(cors());
+app.use(cors({
+  origin: ["http://localhost:5173", "https://artsphere-full-stack-real-time-art-auction-curation-otg1et5ya.vercel.app"], 
+  credentials: true
+}));
 app.use(express.json());
 
 /* -------------------- ROUTES -------------------- */
