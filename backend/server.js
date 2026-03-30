@@ -12,8 +12,8 @@ import http from "http";
 import { Server } from "socket.io";
 
 import authRoutes from "./routes/authRoutes.js";
-import { protect } from "./middleware/authMiddleware.js";// ✅ UNCOMMENTED
-import adminOnly from "./middleware/adminMiddleware.js"; // ✅ ADMIN MIDDLEWARE
+import { protect } from "./middleware/authMiddleware.js";
+import adminOnly from "./middleware/adminMiddleware.js";
 import artRoutes from "./routes/artRoutes.js";
 
 dotenv.config();
@@ -40,7 +40,7 @@ app.use(express.json());
 
 /* -------------------- ROUTES -------------------- */
 app.use("/api/auth", authRoutes);
-app.use("/api/art", artRoutes);
+app.use("/api/artworks", artRoutes); // ✅ FIXED HERE
 app.use("/api/exhibitions", exhibitionRoutes);
 app.use("/api/admin", adminRoutes);
 app.use("/api/users", userRoutes);
@@ -57,11 +57,8 @@ app.get("/api/admin-test", protect, adminOnly, (req, res) => {
 io.on("connection", (socket) => {
   console.log("🟢 User connected:", socket.id);
 
-  // Listen for new bid
   socket.on("newBid", (data) => {
     console.log("💰 New bid received:", data);
-
-    // Broadcast to ALL connected users
     io.emit("bidUpdate", data);
   });
 
