@@ -1,5 +1,6 @@
 import express from "express";
 import Collection from "../models/Collection.js";
+import Art from "../models/Art.js";
 import { protect, authorize } from "../middleware/authMiddleware.js";
 
 const router = express.Router();
@@ -8,7 +9,20 @@ const router = express.Router();
 router.post("/", protect, authorize("artist"), async (req, res) => {
   try {
     const { name, description, artworks } = req.body;
-    const artistId = req.user._id || req.user.id;
+    const artistId = String(req.user._id || req.user.id);
+
+    // ✅ Verify every selected artwork belongs to this artist and is not sold
+    const artDocs = await Art.find({ _id: { $in: artworks } });
+    for (const art of artDocs) {
+      if (String(art.artist) !== artistId) {
+        return res.status(403).json({ message: "You can only add your own artworks to a collection" });
+      }
+      if (art.isSold) {
+        return res.status(400).json({
+          message: "You cannot hold an auction with an already sold artwork, edit the collection and try again"
+        });
+      }
+    }
 
     const newCollection = await Collection.create({
       name,
@@ -37,21 +51,36 @@ router.get("/my-collections", protect, authorize("artist"), async (req, res) => 
 // Edit a collection
 router.put("/:id", protect, authorize("artist"), async (req, res) => {
   try {
-    const artistId = req.user._id || req.user.id;
+    const artistId = String(req.user._id || req.user.id);
     const collection = await Collection.findById(req.params.id);
 
     if (!collection) {
       return res.status(404).json({ message: "Collection not found" });
     }
 
-    if (collection.artist.toString() !== artistId.toString()) {
+    if (collection.artist.toString() !== artistId) {
       return res.status(403).json({ message: "Not authorized" });
     }
 
     const { name, artworks } = req.body;
+
+    // ✅ Verify every artwork belongs to this artist and is not sold
+    if (artworks && artworks.length > 0) {
+      const artDocs = await Art.find({ _id: { $in: artworks } });
+      for (const art of artDocs) {
+        if (String(art.artist) !== artistId) {
+          return res.status(403).json({ message: "You can only add your own artworks to a collection" });
+        }
+        if (art.isSold) {
+          return res.status(400).json({
+            message: "You cannot hold an auction with an already sold artwork, edit the collection and try again"
+          });
+        }
+      }
+    }
+
     collection.name = name || collection.name;
     collection.artworks = artworks || collection.artworks;
-
     await collection.save();
 
     const updated = await Collection.findById(req.params.id).populate("artworks");

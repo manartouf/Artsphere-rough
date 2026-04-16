@@ -5,9 +5,38 @@
     <link rel="icon" type="image/svg+xml" href="/vite.svg" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>frontend</title>
+  <style>
+    .fade-up {
+      opacity: 0;
+      transform: translateY(32px);
+      transition: opacity 0.6s ease, transform 0.6s ease;
+    }
+    .fade-up.visible {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  </style>
   </head>
   <body>
     <div id="root"></div>
     <script type="module" src="/src/main.jsx"></script>
+    <script>
+      const observer = new IntersectionObserver((entries) => {
+        entries.forEach(e => {
+          if (e.isIntersecting) {
+           e.target.classList.add('visible');
+          }
+        });
+      }, { threshold: 0.1 });
+
+      const observe = () => {
+        document.querySelectorAll('.fade-up').forEach(el => observer.observe(el));
+      };
+
+      // Run on load and after navigation
+       observe();
+       const mo = new MutationObserver(observe);
+       mo.observe(document.body, { childList: true, subtree: true });
+    </script>
   </body>
 </html>

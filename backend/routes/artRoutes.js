@@ -22,9 +22,7 @@ router.post("/", protect, authorize("artist"), upload.single("image"), async (re
       const checkIsAuction = String(isAuction) === "true";
 
       const art = await Art.create({
-        title,
-        description,
-        category,
+        title, description, category,
         price: Number(price),
         isAuction: checkIsAuction,
         exhibitionType: exhibitionType || "buy",
@@ -83,12 +81,10 @@ router.put("/admin/approve/:id", protect, authorize("admin"), async (req, res) =
   try {
     const { status, auctionDurationHours, auctionStartTime } = req.body;
     let updateData = { status };
-
     if (status === "approved" && auctionDurationHours) {
       const start = auctionStartTime ? new Date(auctionStartTime) : new Date();
       updateData.auctionEndTime = new Date(start.getTime() + Number(auctionDurationHours) * 60 * 60 * 1000);
     }
-
     const art = await Art.findByIdAndUpdate(req.params.id, updateData, { new: true });
     res.json(art);
   } catch (error) {
@@ -96,13 +92,12 @@ router.put("/admin/approve/:id", protect, authorize("admin"), async (req, res) =
   }
 });
 
-// GET ALL ART — FIX: populate followers so Artists page shows correct count
+// GET ALL ART
 router.get("/", async (req, res) => {
   try {
     const arts = await Art.find({ status: "approved" })
       .populate("artist", "name email role aboutMe followers")
       .populate("highestBidder", "name email");
-
     const formattedArts = arts.map(art => {
       const artObj = art.toObject();
       if (!art.artist && art._doc.artist) artObj.artist = art._doc.artist;
@@ -114,7 +109,7 @@ router.get("/", async (req, res) => {
   }
 });
 
-// GET SINGLE ARTWORK BY ID — FIX: populate followers + bids.bidder
+// GET SINGLE ARTWORK BY ID
 router.get("/:id", async (req, res) => {
   try {
     const art = await Art.findById(req.params.id)
@@ -148,7 +143,7 @@ router.put("/:id/admire", protect, async (req, res) => {
   }
 });
 
-// PLACE BID — FIX: use auctionStartPrice for increment, emit artId + totalBids
+// PLACE BID — lightning fast, emits bidUpdate + bidToast immediately
 router.post("/:id/bid", protect, async (req, res) => {
   try {
     const { amount } = req.body;
@@ -157,11 +152,9 @@ router.post("/:id/bid", protect, async (req, res) => {
     if (!art || !art.isAuction || art.status !== "approved") {
       return res.status(400).json({ message: "Auction not available" });
     }
-
     if (art.isSold) {
       return res.status(400).json({ message: "This artwork has already been sold" });
     }
-
     if (art.auctionEndTime && new Date() > new Date(art.auctionEndTime)) {
       return res.status(400).json({ message: "Auction time has expired" });
     }
@@ -175,44 +168,68 @@ router.post("/:id/bid", protect, async (req, res) => {
     }
 
     const bidder = await User.findById(req.user.id);
+    if (!bidder) return res.status(404).json({ message: "Bidder not found" });
     if (bidder.walletBalance < Number(amount)) {
       return res.status(400).json({ message: "Insufficient wallet balance" });
     }
 
     art.currentBid = Number(amount);
-    art.bids.push({ bidder: req.user.id, amount: Number(amount) });
+    art.bids.push({ bidder: req.user.id, amount: Number(amount), time: new Date() });
     art.highestBidder = req.user.id;
     await art.save();
 
+    const nextExpectedBid = startPrice + (increment * (art.bids.length + 1));
+
+    // Send response immediately so bidder's UI unblocks
+    res.json({ message: "Bid placed", currentBid: art.currentBid });
+
+    // Populate bids for emit
+    const populated = await Art.findById(art._id)
+      .populate("bids.bidder", "name")
+      .populate("highestBidder", "name");
+
+    // Emit bidUpdate to ALL connected clients instantly
     io.emit("bidUpdate", {
-      artId: art._id,
+      artId: art._id.toString(),
       currentBid: art.currentBid,
-      highestBidder: { _id: bidder._id, name: bidder.name },
-      bids: art.bids,
+      highestBidder: { _id: bidder._id.toString(), name: bidder.name },
+      bids: populated.bids.map(b => ({
+        bidder: { _id: b.bidder?._id?.toString(), name: b.bidder?.name || "Anonymous" },
+        amount: b.amount,
+        time: b.time,
+      })),
       totalBids: art.bids.length,
+      nextExpectedBid,
+      startingPrice: startPrice,
     });
 
-    res.json({ message: "Bid placed", currentBid: art.currentBid });
+    // Emit bidToast so OTHER buyers get instant notification
+    io.emit("bidToast", {
+      artId: art._id.toString(),
+      bidderId: bidder._id.toString(),
+      bidderName: bidder.name,
+      amount: Number(amount),
+      nextBid: nextExpectedBid,
+    });
+
   } catch (error) {
     res.status(500).json({ message: error.message });
   }
 });
 
-// DIRECT PURCHASE — FIX: block auction items, deduct wallet, notify artist
+// DIRECT PURCHASE
 router.post("/:id/buy", protect, async (req, res) => {
   try {
     const art = await Art.findById(req.params.id).populate("artist");
     if (!art || art.isSold || art.status !== "approved") {
       return res.status(400).json({ message: "Not available" });
     }
-
     if (art.isAuction) {
       return res.status(400).json({ message: "This artwork is in auction and cannot be bought directly" });
     }
 
     const buyer = await User.findById(req.user.id);
     if (!buyer) return res.status(404).json({ message: "Buyer not found" });
-
     if (buyer.walletBalance < art.price) {
       return res.status(400).json({ message: `Insufficient wallet balance. You have $${buyer.walletBalance} but this costs $${art.price}` });
     }
@@ -227,11 +244,7 @@ router.post("/:id/buy", protect, async (req, res) => {
 
     if (art.artist?._id) {
       await User.findByIdAndUpdate(art.artist._id, {
-        $push: {
-          notifications: {
-            message: `${buyer.name} bought your artwork "${art.title}" for $${art.price}!`
-          }
-        }
+        $push: { notifications: { message: `${buyer.name} bought your artwork "${art.title}" for $${art.price}!` } }
       });
     }
 

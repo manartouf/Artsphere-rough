@@ -92,6 +92,17 @@ const artSchema = new mongoose.Schema(
       default: 0,
     },
 
+    soldWhere: {
+      type: String,
+      enum: ["browse", "auction", "exhibition"],
+      default: null,
+    },
+
+    inExhibition: {
+      type: Boolean,
+      default: false,
+    },
+
     buyer: {
       type: mongoose.Schema.Types.ObjectId,
       ref: "User",

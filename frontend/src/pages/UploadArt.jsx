@@ -32,15 +32,13 @@ const UploadArt = () => {
     data.append("description", formData.description);
     data.append("price", formData.price);
     data.append("category", formData.category);
-
-    // Hidden defaults to match database schema requirements
     data.append("isAuction", false);
     data.append("auctionStatus", "inactive");
     data.append("status", "approved");
 
     const loadingToast = toast.loading("Uploading masterpiece...");
     try {
-      await API.post('/art', data, {
+      await API.post('/artworks', data, {         // ✅ FIXED
         headers: { "Content-Type": "multipart/form-data" }
       });
       toast.success("Art uploaded successfully!", { id: loadingToast });

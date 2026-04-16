@@ -38,13 +38,15 @@ const ExhibitionRoom = () => {
     if (buyingId) return;
     setBuyingId(artwork._id);
     try {
-      await API.post(`/art/${artwork._id}/buy`);
+      // ✅ FIX: was /art/${artwork._id}/buy
+      await API.post(`/artworks/${artwork._id}/buy`);
       toast.success(`You bought "${artwork.title}"!`);
-      // Update artwork in local state to show SOLD
       setExhibition(prev => ({
         ...prev,
         artworks: prev.artworks.map(a =>
-          a._id === artwork._id ? { ...a, isSold: true, soldPrice: artwork.price } : a
+          a._id === artwork._id
+            ? { ...a, isSold: true, soldPrice: artwork.price, soldWhere: "exhibition" }
+            : a
         )
       }));
     } catch (err) {
@@ -65,7 +67,6 @@ const ExhibitionRoom = () => {
   return (
     <div className="max-w-6xl mx-auto px-4 py-10 text-white">
 
-      {/* Header */}
       <div className="mb-8">
         <div className="flex flex-wrap items-start justify-between gap-4">
           <div>
@@ -86,7 +87,6 @@ const ExhibitionRoom = () => {
             </button>
           </div>
 
-          {/* Status badge */}
           <div className={`px-4 py-2 rounded-full text-sm font-bold ${
             isActive
               ? "bg-green-900/40 text-green-400 border border-green-700"
@@ -102,7 +102,6 @@ const ExhibitionRoom = () => {
           </p>
         )}
 
-        {/* Dates if available */}
         {(exhibition.startDate || exhibition.endDate) && (
           <div className="flex gap-6 mt-4 text-sm text-gray-500">
             {exhibition.startDate && (
@@ -115,10 +114,8 @@ const ExhibitionRoom = () => {
         )}
       </div>
 
-      {/* Divider */}
       <div className="border-t border-gray-800 mb-10" />
 
-      {/* Exhibition ended overlay message */}
       {!isActive && (
         <div className="bg-gray-900/60 border border-gray-700 rounded-xl p-6 text-center mb-8">
           <p className="text-2xl mb-2">🖼️</p>
@@ -135,7 +132,6 @@ const ExhibitionRoom = () => {
         </div>
       )}
 
-      {/* Gallery Wall — only show if active and has artworks */}
       {exhibition.artworks?.length > 0 ? (
         <GalleryWallCard
           artworks={exhibition.artworks}
@@ -150,7 +146,6 @@ const ExhibitionRoom = () => {
         </div>
       )}
 
-      {/* Back link */}
       <div className="mt-12 border-t border-gray-800 pt-6">
         <button
           onClick={() => navigate("/exhibitions")}

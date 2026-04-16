@@ -36,7 +36,7 @@ const AuctionRoom = () => {
   useEffect(() => {
     const fetchAuction = async () => {
       try {
-        const { data: auctionData } = await API.get(`/auctions/by-art/${id}`);
+        const { data: auctionData } = await API.get(`/auctions/${id}`);
         setAuction(auctionData);
         if (auctionData.status === "ended") setAuctionEnded(true);
 
@@ -61,9 +61,7 @@ const AuctionRoom = () => {
           setHighestBidder(artData.data.highestBidder || null);
 
           // If already has bids, start countdown
-          if ((artData.data.bids?.length || 0) > 0) {
-            startSoldCountdown();
-          }
+          
         }
       } catch {
         toast.error("Failed to load auction");

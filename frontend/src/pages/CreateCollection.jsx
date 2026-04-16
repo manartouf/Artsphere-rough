@@ -14,10 +14,12 @@ const CreateCollection = () => {
   useEffect(() => {
     const fetchMyArt = async () => {
       try {
-        const { data } = await API.get('/art');
+        // ✅ FIX: was /art, also filter out sold artworks
+        const { data } = await API.get('/artworks');
         const filtered = data.filter(art => {
           const artistId = String(art.artist?._id || art.artist?.id || art.artist);
-          return artistId === String(user?._id) || artistId === String(user?.id);
+          const isOwn = artistId === String(user?._id) || artistId === String(user?.id);
+          return isOwn && !art.isSold; // ✅ exclude sold artworks
         });
         setMyArt(filtered);
       } catch (err) {
@@ -61,7 +63,7 @@ const CreateCollection = () => {
       />
       <h3 className="mb-4 text-gray-400 font-bold">Select Your Artworks ({selectedArt.length}):</h3>
       {myArt.length === 0 ? (
-        <p className="text-gray-500 italic mb-8">No artworks found. Upload some artworks first.</p>
+        <p className="text-gray-500 italic mb-8">No available artworks found. Upload some artworks first.</p>
       ) : (
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
           {myArt.map(art => (

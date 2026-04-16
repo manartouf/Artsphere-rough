@@ -4,8 +4,65 @@ import Auction from '../models/Auction.js';
 import Collection from '../models/Collection.js';
 import Art from '../models/Art.js';
 import User from '../models/User.js';
+import { io } from '../server.js';
 
 const router = express.Router();
+
+// ✅ PUBLIC: Get all auctions grouped as live and ended
+// Also cleans up any stale "approved" auctions whose time has passed
+router.get('/all', async (req, res) => {
+  try {
+    const now = new Date();
+
+    const auctions = await Auction.find({ status: { $in: ['approved', 'ended'] } })
+      .populate({
+        path: 'collectionId',
+        populate: { path: 'artworks' }
+      })
+      .populate('artistId', 'name email')
+      .sort({ createdAt: -1 });
+
+    // ✅ For each "approved" auction, check if its last artwork's time has passed
+    // If so, treat it as ended (and fix the DB in the background)
+    const live = [];
+    const ended = [];
+
+    for (const auction of auctions) {
+      if (auction.status === 'ended') {
+        ended.push(auction);
+        continue;
+      }
+
+      // It's "approved" — verify time is still valid
+      const artworks = auction.collectionId?.artworks || [];
+      if (artworks.length === 0) {
+        ended.push(auction);
+        continue;
+      }
+
+      const lastArtwork = artworks[artworks.length - 1];
+      const lastArtDoc = await Art.findById(lastArtwork._id || lastArtwork);
+
+      // ✅ If last artwork's end time has passed, this auction is actually over
+      if (lastArtDoc?.auctionEndTime && now > new Date(lastArtDoc.auctionEndTime)) {
+        // Fix DB in background — don't await to keep response fast
+        Auction.findByIdAndUpdate(auction._id, { status: 'ended' }).exec();
+        const artworkIds = artworks.map(a => a._id || a);
+        Art.updateMany(
+          { _id: { $in: artworkIds }, isSold: false, isAuction: true },
+          { isAuction: false, auctionStatus: 'ended' }
+        ).exec();
+        ended.push({ ...auction.toObject(), status: 'ended' });
+      } else {
+        live.push(auction);
+      }
+    }
+
+    res.json({ live, ended });
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+});
 
 // Artist requests an auction
 router.post('/request', protect, authorize('artist'), async (req, res) => {
@@ -15,10 +72,31 @@ router.post('/request', protect, authorize('artist'), async (req, res) => {
     const collection = await Collection.findOne({
       _id: collectionId,
       artist: req.user._id || req.user.id
-    });
+    }).populate("artworks");
 
     if (!collection) {
       return res.status(404).json({ message: "Collection not found or unauthorized" });
+    }
+
+    const soldArtwork = collection.artworks.find(a => a.isSold);
+    if (soldArtwork) {
+      return res.status(400).json({
+        message: "You cannot hold an auction with an already sold artwork, edit the collection and try again"
+      });
+    }
+
+    const inAuction = collection.artworks.find(a => a.isAuction && a.status === "approved");
+    if (inAuction) {
+      return res.status(400).json({
+        message: "One or more artworks are already in an active auction"
+      });
+    }
+
+    const inExhibition = collection.artworks.find(a => a.inExhibition);
+    if (inExhibition) {
+      return res.status(400).json({
+        message: `"${inExhibition.title}" is currently in a live exhibition and cannot be auctioned`
+      });
     }
 
     const newAuction = await Auction.create({
@@ -57,7 +135,7 @@ router.get('/all-requests', protect, authorize('admin'), async (req, res) => {
   }
 });
 
-// Find approved auction by artwork ID
+// ✅ Find approved auction by artwork ID — checks time validity before returning
 router.get('/by-art/:artId', protect, async (req, res) => {
   try {
     const collection = await Collection.findOne({ artworks: req.params.artId });
@@ -75,6 +153,24 @@ router.get('/by-art/:artId', protect, async (req, res) => {
 
     if (!auction) {
       return res.status(404).json({ message: "No active auction found for this artwork" });
+    }
+
+    // ✅ Check if the auction's global end time has actually passed
+    const artworks = auction.collectionId?.artworks || [];
+    if (artworks.length > 0) {
+      const lastArtwork = artworks[artworks.length - 1];
+      const lastArtDoc = await Art.findById(lastArtwork._id || lastArtwork);
+
+      if (lastArtDoc?.auctionEndTime && new Date() > new Date(lastArtDoc.auctionEndTime)) {
+        // Auction time has passed — clean up and tell frontend it's ended
+        Auction.findByIdAndUpdate(auction._id, { status: 'ended' }).exec();
+        const artworkIds = artworks.map(a => a._id || a);
+        Art.updateMany(
+          { _id: { $in: artworkIds }, isSold: false, isAuction: true },
+          { isAuction: false, auctionStatus: 'ended' }
+        ).exec();
+        return res.status(404).json({ message: "No active auction found for this artwork" });
+      }
     }
 
     res.json(auction);
@@ -102,24 +198,22 @@ router.put('/approve/:id', protect, authorize('admin'), async (req, res) => {
     }
 
     if (status === 'approved' && auction.collectionId) {
-      const artworkIds = auction.collectionId.artworks.map(a => a._id || a);
-
-      // FIX: Use Date.now() not startTime to avoid 561 hours bug
-      const auctionEndTime = new Date(
-        Date.now() + (Number(auction.durationHours) || 24) * 60 * 60 * 1000
-      );
-
-      await Art.updateMany(
-        { _id: { $in: artworkIds } },
-        {
+      const artworks = auction.collectionId.artworks;
+      const totalArtworks = artworks.length;
+      const totalHours = Number(auction.durationHours) || 24;
+      const hoursPerArt = totalHours / totalArtworks;
+      const start = auction.startTime ? new Date(auction.startTime).getTime() : Date.now();
+      for (let i = 0; i < artworks.length; i++) {
+        const artEndTime = new Date(start + (i + 1) * hoursPerArt * 60 * 60 * 1000);
+        await Art.findByIdAndUpdate(artworks[i]._id || artworks[i], {
           isAuction: true,
           status: 'approved',
-          auctionEndTime,
-          currentBid: 0,
-        }
-      );
+          auctionEndTime: artEndTime,
+          currentBid: artworks[i].auctionStartPrice || 0,
+          auctionStatus: 'active',
+        });
+      }
 
-      // Notify the artist
       await User.findByIdAndUpdate(auction.artistId, {
         $push: {
           notifications: {
@@ -128,7 +222,6 @@ router.put('/approve/:id', protect, authorize('admin'), async (req, res) => {
         }
       });
 
-      // FIX: Notify artist's followers about the auction
       const artist = await User.findById(auction.artistId);
       if (artist && artist.followers.length > 0) {
         await User.updateMany(
@@ -160,7 +253,7 @@ router.put('/approve/:id', protect, authorize('admin'), async (req, res) => {
   }
 });
 
-// FIX: Remove role restriction — any logged in user can view auction
+// Any logged in user can view auction
 router.get("/:id", protect, async (req, res) => {
   try {
     const auction = await Auction.findById(req.params.id)

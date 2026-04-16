@@ -13,7 +13,8 @@ const Artists = () => {
   useEffect(() => {
     const fetchArtists = async () => {
       try {
-        const { data } = await API.get("/art");
+        // ✅ FIX: was /art, backend route is /artworks
+        const { data } = await API.get("/artworks");
         const seen = new Set();
         const artistIds = [];
         data.forEach(art => {
@@ -24,7 +25,6 @@ const Artists = () => {
           }
         });
 
-        // FIX: fetch full profiles to get correct follower counts
         const profiles = await Promise.all(
           artistIds.map(id =>
             API.get(`/users/artist/${id}`)

@@ -23,7 +23,7 @@ const ArtDetails = () => {
   useEffect(() => {
     const fetchArt = async () => {
       try {
-        const { data } = await API.get(`/art/${id}`);
+        const { data } = await API.get(`/artworks/${id}`);
         setArt(data);
         setAdmireCount(data.admirers?.length || 0);
         if (user) {
@@ -39,7 +39,6 @@ const ArtDetails = () => {
     fetchArt();
   }, [id, user]);
 
-  // ── Admire toggle ────────────────────────────────────────
   const handleAdmire = async () => {
     if (!user) {
       toast.error("Please login to admire artworks");
@@ -47,7 +46,7 @@ const ArtDetails = () => {
       return;
     }
     try {
-      await API.put(`/art/${id}/admire`);
+      await API.put(`/artworks/${id}/admire`);
       setAdmired(prev => !prev);
       setAdmireCount(prev => admired ? prev - 1 : prev + 1);
     } catch {
@@ -55,7 +54,6 @@ const ArtDetails = () => {
     }
   };
 
-  // ── Buy now ──────────────────────────────────────────────
   const handleBuy = async () => {
     if (!user) {
       navigate("/login");
@@ -63,9 +61,9 @@ const ArtDetails = () => {
     }
     setBuying(true);
     try {
-      await API.post(`/art/${id}/buy`);
+      await API.post(`/artworks/${id}/buy`);
       toast.success("Purchase successful! 🎨");
-      setArt(prev => ({ ...prev, isSold: true, soldPrice: prev.price }));
+      setArt(prev => ({ ...prev, isSold: true, soldPrice: prev.price, soldWhere: "browse" }));
     } catch (err) {
       toast.error(err.response?.data?.message || "Purchase failed");
     } finally {
@@ -73,15 +71,22 @@ const ArtDetails = () => {
     }
   };
 
-  // ── Delete artwork ───────────────────────────────────────
   const handleDelete = async () => {
     try {
-      await API.delete(`/art/${id}`);
+      await API.delete(`/artworks/${id}`);
       toast.success("Artwork deleted successfully");
       navigate("/profile");
     } catch {
       toast.error("Delete failed");
     }
+  };
+
+  // ✅ Sold-where label
+  const getSoldWhereLabel = (art) => {
+    if (!art?.isSold) return null;
+    if (art.soldWhere === "auction") return `Sold at auction for $${art.soldPrice}`;
+    if (art.soldWhere === "exhibition") return `Sold in exhibition for $${art.soldPrice}`;
+    return `Sold for $${art.soldPrice}`;
   };
 
   if (loading) return <LoadingSpinner />;
@@ -112,7 +117,6 @@ const ArtDetails = () => {
   return (
     <div className="max-w-6xl mx-auto px-4 py-10 text-white">
 
-      {/* Delete confirm modal */}
       {showDeleteModal && (
         <ConfirmModal
           message={`Are you sure you want to delete "${art.title}"? This cannot be undone.`}
@@ -121,7 +125,6 @@ const ArtDetails = () => {
         />
       )}
 
-      {/* Back link */}
       <button
         onClick={() => navigate(-1)}
         className="text-gray-500 hover:text-[#6c3483] text-sm mb-8 transition flex items-center gap-1"
@@ -129,10 +132,8 @@ const ArtDetails = () => {
         ← Back
       </button>
 
-      {/* Main layout */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-10 items-start">
 
-        {/* Left — artwork image */}
         <div className="relative">
           <img
             src={displayImage}
@@ -140,7 +141,6 @@ const ArtDetails = () => {
             className="w-full rounded-xl shadow-2xl border border-gray-800 object-contain max-h-[520px]"
           />
 
-          {/* SOLD overlay */}
           {art.isSold && (
             <div className="absolute inset-0 rounded-xl bg-black/50 flex items-center justify-center">
               <span className="text-red-500 font-black text-5xl border-4 border-red-500 px-6 py-2 rotate-[-15deg]">
@@ -149,7 +149,6 @@ const ArtDetails = () => {
             </div>
           )}
 
-          {/* Admire button */}
           <button
             onClick={handleAdmire}
             className="absolute bottom-4 right-4 flex items-center gap-2 bg-black/70 hover:bg-black/90 px-4 py-2 rounded-full transition"
@@ -161,10 +160,8 @@ const ArtDetails = () => {
           </button>
         </div>
 
-        {/* Right — details */}
         <div className="space-y-6">
 
-          {/* Title + badges */}
           <div className="space-y-3">
             <div className="flex flex-wrap gap-2 items-center">
               {art.isSold && <StatusBadge status="sold" />}
@@ -187,7 +184,6 @@ const ArtDetails = () => {
             </h1>
           </div>
 
-          {/* Artist info card */}
           <div
             onClick={() => art.artist?._id && navigate(`/artist/${art.artist._id}`)}
             className="flex items-center gap-3 bg-[#1e1e38] border border-gray-800 rounded-xl p-4 cursor-pointer hover:border-[#6c3483] transition"
@@ -201,22 +197,18 @@ const ArtDetails = () => {
             </div>
           </div>
 
-          {/* Description */}
           <p className="text-gray-300 leading-relaxed text-lg">{art.description}</p>
 
-          {/* ── Conditional action section ── */}
-
-          {/* 1. SOLD */}
+          {/* ✅ Sold section with where/how much */}
           {art.isSold && (
             <div className="bg-red-900/20 border border-red-800 rounded-xl p-5 space-y-1">
               <p className="text-red-400 font-bold text-lg">This artwork has been sold</p>
               <p className="text-gray-400 text-sm">
-                Final price: <span className="text-white font-bold">${art.soldPrice}</span>
+                {getSoldWhereLabel(art)}
               </p>
             </div>
           )}
 
-          {/* 2. Pending approval */}
           {art.status === "pending" && !art.isSold && (
             <div className="bg-yellow-900/20 border border-yellow-700 rounded-xl p-5">
               <p className="text-yellow-400 font-bold">⏳ Awaiting Admin Approval</p>
@@ -226,7 +218,6 @@ const ArtDetails = () => {
             </div>
           )}
 
-          {/* 3. Active auction */}
           {isAuctionActive && (
             <div className="bg-[#1e1e38] border border-[#6c3483] rounded-xl p-5 space-y-4">
               <div className="flex items-center justify-between">
@@ -239,7 +230,7 @@ const ArtDetails = () => {
               <div>
                 <p className="text-gray-400 text-sm">Current Bid</p>
                 <p className="text-3xl font-black text-[#6c3483]">
-                  ${art.currentBid || art.auctionStartPrice || 0}
+                  ${art.currentBid > 0 ? art.currentBid : art.auctionStartPrice || 0}
                 </p>
               </div>
               <button
@@ -251,7 +242,6 @@ const ArtDetails = () => {
             </div>
           )}
 
-          {/* 4. Buy now — fixed price */}
           {isFixedBuyable && !isViewOnly && (
             <div className="bg-[#1e1e38] border border-gray-800 rounded-xl p-5 space-y-4">
               <div>
@@ -283,7 +273,6 @@ const ArtDetails = () => {
             </div>
           )}
 
-          {/* 5. View only */}
           {isViewOnly && !art.isSold && (
             <div className="bg-gray-900/40 border border-gray-700 rounded-xl p-5 text-center">
               <StatusBadge status="view-only" />
@@ -293,7 +282,6 @@ const ArtDetails = () => {
             </div>
           )}
 
-          {/* Owner actions */}
           {isOwner && (
             <div className="border-t border-gray-800 pt-4 flex gap-3">
               <button

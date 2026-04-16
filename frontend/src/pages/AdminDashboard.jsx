@@ -14,7 +14,6 @@ const COLORS = ["#6c3483", "#27ae60", "#e74c3c", "#f39c12", "#3498db"];
 const AdminDashboard = () => {
   const [activeTab, setActiveTab] = useState("auctions");
 
-  // Data state
   const [analytics, setAnalytics] = useState(null);
   const [auctionRequests, setAuctionRequests] = useState([]);
   const [exhibitions, setExhibitions] = useState([]);
@@ -23,14 +22,12 @@ const AdminDashboard = () => {
   const [sales, setSales] = useState([]);
   const [loading, setLoading] = useState(true);
 
-  // UI state
   const [newCategory, setNewCategory] = useState("");
   const [deleteTarget, setDeleteTarget] = useState(null);
   const [deleteType, setDeleteType] = useState(null);
   const [userSearch, setUserSearch] = useState("");
   const [editDuration, setEditDuration] = useState({});
 
-  // ── Fetch all data ───────────────────────────────────────
   useEffect(() => {
     const fetchAll = async () => {
       try {
@@ -41,7 +38,7 @@ const AdminDashboard = () => {
             API.get("/admin/exhibitions"),
             API.get("/admin/users"),
             API.get("/admin/categories"),
-            API.get("/art"),
+            API.get("/artworks"), // ✅ FIX: was /art
           ]);
 
         setAnalytics(analyticsRes.data);
@@ -59,7 +56,6 @@ const AdminDashboard = () => {
     fetchAll();
   }, []);
 
-  // ── Cleanup Modal State on Unmount ────────────────────────
   useEffect(() => {
     return () => {
       setDeleteTarget(null);
@@ -67,7 +63,6 @@ const AdminDashboard = () => {
     };
   }, []);
 
-  // ── Auction approve/reject ───────────────────────────────
   const handleStatus = async (id, status) => {
     try {
       const duration = editDuration[id] || 24;
@@ -83,7 +78,6 @@ const AdminDashboard = () => {
     setEditDuration({ ...editDuration, [id]: value });
   };
 
-  // ── Exhibition approve/reject ────────────────────────────
   const handleExhibitionStatus = async (id, action) => {
     try {
       await API.put(`/admin/exhibitions/${id}/${action}`);
@@ -96,7 +90,6 @@ const AdminDashboard = () => {
     }
   };
 
-  // ── Delete user ──────────────────────────────────────────
   const handleDeleteUser = async () => {
     try {
       await API.delete(`/admin/users/${deleteTarget}`);
@@ -110,7 +103,6 @@ const AdminDashboard = () => {
     }
   };
 
-  // ── Delete category ──────────────────────────────────────
   const handleDeleteCategory = async () => {
     try {
       await API.delete(`/admin/categories/${deleteTarget}`);
@@ -124,7 +116,6 @@ const AdminDashboard = () => {
     }
   };
 
-  // ── Add category ─────────────────────────────────────────
   const handleAddCategory = async (e) => {
     e.preventDefault();
     if (!newCategory.trim()) return;
@@ -152,9 +143,9 @@ const AdminDashboard = () => {
   })) || [];
 
   const pieData = [
-    { name: "Active",          value: (analytics?.totalArtworks || 0) - (analytics?.soldCount || 0) },
-    { name: "Sold",            value: analytics?.soldCount || 0 },
-    { name: "Pending Auctions",value: auctionRequests.length },
+    { name: "Active",           value: (analytics?.totalArtworks || 0) - (analytics?.soldCount || 0) },
+    { name: "Sold",             value: analytics?.soldCount || 0 },
+    { name: "Pending Auctions", value: auctionRequests.length },
   ];
 
   const tabs = [
@@ -171,7 +162,6 @@ const AdminDashboard = () => {
   return (
     <div className="max-w-7xl mx-auto px-4 py-10 text-white">
 
-      {/* Confirm modal */}
       {deleteTarget && (
         <ConfirmModal
           message={
@@ -184,7 +174,6 @@ const AdminDashboard = () => {
         />
       )}
 
-      {/* Header */}
       <div className="mb-8">
         <p className="text-[#6c3483] text-sm font-bold uppercase tracking-widest mb-1">
           ArtSphere
@@ -197,7 +186,6 @@ const AdminDashboard = () => {
         </h1>
       </div>
 
-      {/* Tab nav */}
       <div className="flex gap-2 flex-wrap mb-8 border-b border-gray-800 pb-4">
         {tabs.map(tab => (
           <button
@@ -214,7 +202,6 @@ const AdminDashboard = () => {
         ))}
       </div>
 
-      {/* ── Auctions tab ── */}
       {activeTab === "auctions" && (
         <div>
           <h2 className="text-2xl font-black text-white mb-6"
@@ -284,15 +271,14 @@ const AdminDashboard = () => {
         </div>
       )}
 
-      {/* ── Analytics tab ── */}
       {activeTab === "analytics" && (
         <div className="space-y-8">
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
             {[
-              { label: "Total Users",    value: analytics?.totalUsers || 0,               icon: "👥" },
-              { label: "Total Artworks", value: analytics?.totalArtworks || 0,            icon: "🎨" },
-              { label: "Total Sales",    value: analytics?.soldCount || 0,                icon: "🛍️" },
-              { label: "Total Revenue",  value: `$${totalRevenue.toLocaleString()}`,      icon: "💰" },
+              { label: "Total Users",    value: analytics?.totalUsers || 0,          icon: "👥" },
+              { label: "Total Artworks", value: analytics?.totalArtworks || 0,       icon: "🎨" },
+              { label: "Total Sales",    value: analytics?.soldCount || 0,           icon: "🛍️" },
+              { label: "Total Revenue",  value: `$${totalRevenue.toLocaleString()}`, icon: "💰" },
             ].map(stat => (
               <div key={stat.label} className="bg-[#1e1e38] border border-gray-800 rounded-xl p-6 text-center">
                 <p className="text-3xl mb-2">{stat.icon}</p>
@@ -357,7 +343,6 @@ const AdminDashboard = () => {
         </div>
       )}
 
-      {/* ── Exhibitions tab ── */}
       {activeTab === "exhibitions" && (
         <div>
           <h2 className="text-2xl font-black text-white mb-6"
@@ -407,7 +392,6 @@ const AdminDashboard = () => {
         </div>
       )}
 
-      {/* ── Users tab ── */}
       {activeTab === "users" && (
         <div>
           <div className="flex items-center justify-between mb-6">
@@ -459,7 +443,6 @@ const AdminDashboard = () => {
         </div>
       )}
 
-      {/* ── Categories tab ── */}
       {activeTab === "categories" && (
         <div className="max-w-xl">
           <h2 className="text-2xl font-black text-white mb-6"
@@ -504,7 +487,6 @@ const AdminDashboard = () => {
         </div>
       )}
 
-      {/* ── Sales Report tab ── */}
       {activeTab === "reports" && (
         <div>
           <div className="flex items-center justify-between mb-8">

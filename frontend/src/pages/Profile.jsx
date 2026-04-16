@@ -12,7 +12,6 @@ const Profile = () => {
   const [myArt, setMyArt] = useState([]);
   const [myCollections, setMyCollections] = useState([]);
 
-  // Edit collection state
   const [editCollection, setEditCollection] = useState(null);
   const [editCollName, setEditCollName] = useState('');
   const [editCollArtworks, setEditCollArtworks] = useState([]);
@@ -27,8 +26,8 @@ const Profile = () => {
   useEffect(() => {
     const fetchProfileData = async () => {
       try {
-        const artRes = await API.get('/art');
-        // Fix: use String() comparison to handle ObjectId vs string mismatch
+        // ✅ FIX: was /art, backend route is /artworks
+        const artRes = await API.get('/artworks');
         const filteredArt = artRes.data.filter(a => {
           const artistId = String(a.artist?._id || a.artist?.id || a.artist);
           return artistId === String(user?._id) || artistId === String(user?.id);
@@ -99,7 +98,6 @@ const Profile = () => {
   return (
     <div className="max-w-6xl mx-auto mt-10 p-6 space-y-8 min-h-screen">
 
-      {/* Edit Collection Modal */}
       {editCollection && (
         <div
           className="fixed inset-0 bg-black/70 flex items-center justify-center px-4"
@@ -155,7 +153,6 @@ const Profile = () => {
         </div>
       )}
 
-      {/* Profile card */}
       <div className="bg-[#1e1e38] p-8 rounded-lg shadow-xl border border-gray-800">
         <div className="flex justify-between items-center mb-6">
           <h2 className="text-3xl font-bold text-[#6c3483]">My Profile</h2>
@@ -225,7 +222,6 @@ const Profile = () => {
         )}
       </div>
 
-      {/* Artist section */}
       {user?.role === 'artist' && (
         <div className="bg-[#1e1e38] p-8 rounded-lg shadow-xl border border-gray-800 text-white">
           <div className="flex justify-between items-center border-b border-gray-800 mb-8">
@@ -288,6 +284,7 @@ const Profile = () => {
                 <div key={coll._id} className="bg-[#16162a] p-6 rounded-lg border border-gray-800">
                   <div className="flex justify-between items-center mb-4 flex-wrap gap-2">
                     <h3 className="text-xl font-bold text-[#6c3483]">{coll.name}</h3>
+                    {/* ✅ Schedule Auction button — always visible for artist's collections */}
                     <div className="flex gap-2 flex-wrap">
                       <button
                         onClick={() => openEditCollection(coll)}

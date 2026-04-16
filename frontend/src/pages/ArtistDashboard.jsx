@@ -21,12 +21,10 @@ const ArtistDashboard = () => {
   const [loading, setLoading] = useState(true);
   const [deleteTarget, setDeleteTarget] = useState(null);
 
-  // Edit state
   const [editTarget, setEditTarget] = useState(null);
   const [editForm, setEditForm] = useState({ title: "", description: "", price: "", category: "", exhibitionType: "buy" });
   const [saving, setSaving] = useState(false);
 
-  // Upload form state
   const [uploadFile, setUploadFile] = useState(null);
   const [uploading, setUploading] = useState(false);
   const [uploadForm, setUploadForm] = useState({
@@ -40,7 +38,6 @@ const ArtistDashboard = () => {
     auctionDurationHours: "24",
   });
 
-  // Exhibition form state
   const [exForm, setExForm] = useState({
     title: "",
     description: "",
@@ -50,12 +47,11 @@ const ArtistDashboard = () => {
   });
   const [submittingEx, setSubmittingEx] = useState(false);
 
-  // ── Fetch all data ───────────────────────────────────────
   useEffect(() => {
     const fetchAll = async () => {
       try {
         const [artRes, salesRes, catRes, exRes] = await Promise.all([
-          API.get("/art"),
+          API.get("/artworks"),           // ✅ FIXED
           API.get("/users/my-sales"),
           API.get("/admin/categories"),
           API.get("/exhibitions"),
@@ -82,7 +78,6 @@ const ArtistDashboard = () => {
     fetchAll();
   }, [user]);
 
-  // ── Upload artwork ───────────────────────────────────────
   const handleUpload = async (e) => {
     e.preventDefault();
     if (!uploadFile) return toast.error("Please select an image");
@@ -102,7 +97,7 @@ const ArtistDashboard = () => {
         data.append("auctionDurationHours", uploadForm.auctionDurationHours);
       }
 
-      const { data: newArt } = await API.post("/art", data, {
+      const { data: newArt } = await API.post("/artworks", data, {   // ✅ FIXED
         headers: { "Content-Type": "multipart/form-data" },
       });
 
@@ -127,10 +122,9 @@ const ArtistDashboard = () => {
     }
   };
 
-  // ── Delete artwork ───────────────────────────────────────
   const handleDelete = async () => {
     try {
-      await API.delete(`/art/${deleteTarget}`);
+      await API.delete(`/artworks/${deleteTarget}`);    // ✅ FIXED
       setMyArtworks(prev => prev.filter(a => a._id !== deleteTarget));
       toast.success("Artwork deleted");
     } catch {
@@ -140,7 +134,6 @@ const ArtistDashboard = () => {
     }
   };
 
-  // ── Open edit modal ──────────────────────────────────────
   const openEdit = (art) => {
     setEditTarget(art._id);
     setEditForm({
@@ -152,12 +145,11 @@ const ArtistDashboard = () => {
     });
   };
 
-  // ── Save edit ────────────────────────────────────────────
   const handleEdit = async (e) => {
     e.preventDefault();
     setSaving(true);
     try {
-      const { data: updated } = await API.put(`/art/${editTarget}`, editForm);
+      const { data: updated } = await API.put(`/artworks/${editTarget}`, editForm);   // ✅ FIXED
       setMyArtworks(prev => prev.map(a => a._id === editTarget ? { ...a, ...updated } : a));
       toast.success("Artwork updated!");
       setEditTarget(null);
@@ -168,7 +160,6 @@ const ArtistDashboard = () => {
     }
   };
 
-  // ── Toggle exhibition ────────────────────────────────────
   const handleToggleExhibition = async (exId, currentStatus) => {
     try {
       const { data } = await API.put(`/exhibitions/${exId}/toggle`);
@@ -181,7 +172,6 @@ const ArtistDashboard = () => {
     }
   };
 
-  // ── Submit exhibition ────────────────────────────────────
   const handleSubmitExhibition = async (e) => {
     e.preventDefault();
     if (exForm.artworks.length === 0) {
@@ -226,7 +216,6 @@ const ArtistDashboard = () => {
   return (
     <div className="max-w-6xl mx-auto px-4 py-10 text-white">
 
-      {/* Delete modal */}
       {deleteTarget && (
         <ConfirmModal
           message="Are you sure you want to delete this artwork? This cannot be undone."
@@ -235,7 +224,6 @@ const ArtistDashboard = () => {
         />
       )}
 
-      {/* Edit modal */}
       {editTarget && (
         <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50 px-4">
           <div className="bg-[#1e1e38] border border-gray-700 rounded-xl p-8 w-full max-w-lg shadow-2xl">
@@ -318,7 +306,6 @@ const ArtistDashboard = () => {
         </div>
       )}
 
-      {/* Header */}
       <div className="mb-8">
         <p className="text-[#6c3483] text-sm font-bold uppercase tracking-widest mb-1">
           Artist Dashboard
@@ -331,7 +318,6 @@ const ArtistDashboard = () => {
         </h1>
       </div>
 
-      {/* Tab nav */}
       <div className="flex gap-2 flex-wrap mb-8 border-b border-gray-800 pb-4">
         {tabs.map(tab => (
           <button
@@ -348,7 +334,6 @@ const ArtistDashboard = () => {
         ))}
       </div>
 
-      {/* ── Overview tab ── */}
       {activeTab === "overview" && (
         <div className="space-y-8">
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
@@ -399,7 +384,6 @@ const ArtistDashboard = () => {
         </div>
       )}
 
-      {/* ── Upload tab ── */}
       {activeTab === "upload" && (
         <div className="max-w-2xl">
           <h2 className="text-2xl font-black text-white mb-6"
@@ -524,7 +508,6 @@ const ArtistDashboard = () => {
         </div>
       )}
 
-      {/* ── My Artworks tab ── */}
       {activeTab === "artworks" && (
         <div>
           <div className="flex items-center justify-between mb-6">
@@ -589,7 +572,6 @@ const ArtistDashboard = () => {
         </div>
       )}
 
-      {/* ── My Sales tab ── */}
       {activeTab === "sales" && (
         <div>
           <div className="flex items-center justify-between mb-6">
@@ -639,7 +621,6 @@ const ArtistDashboard = () => {
         </div>
       )}
 
-      {/* ── Exhibitions tab ── */}
       {activeTab === "exhibitions" && (
         <div>
           <div className="flex items-center justify-between mb-6">
@@ -707,7 +688,6 @@ const ArtistDashboard = () => {
         </div>
       )}
 
-      {/* ── New Exhibition tab ── */}
       {activeTab === "newexhibition" && (
         <div className="max-w-2xl">
           <h2 className="text-2xl font-black text-white mb-6"

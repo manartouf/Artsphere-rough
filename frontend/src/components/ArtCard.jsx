@@ -18,7 +18,8 @@ const ArtCard = ({ art, onAdmireToggle }) => {
       return;
     }
     try {
-      await API.put(`/art/${art._id}/admire`);
+      // ✅ FIX: was /art/${art._id}/admire
+      await API.put(`/artworks/${art._id}/admire`);
       if (onAdmireToggle) onAdmireToggle(art._id);
     } catch {
       toast.error("Failed to update");
@@ -26,7 +27,13 @@ const ArtCard = ({ art, onAdmireToggle }) => {
   };
 
   const handleClick = () => {
-    if (art.isAuction && !art.isSold) {
+    // ✅ FIX: only navigate to auction room if auction is actually still active (not expired)
+    const auctionIsActive = art.isAuction &&
+      !art.isSold &&
+      art.status === "approved" &&
+      (!art.auctionEndTime || new Date() < new Date(art.auctionEndTime));
+
+    if (auctionIsActive) {
       navigate(`/auction/${art._id}`);
     } else {
       navigate(`/art/${art._id}`);
@@ -36,10 +43,16 @@ const ArtCard = ({ art, onAdmireToggle }) => {
   const isAdmired = user && art.admirers?.includes(user._id);
   const displayImage = art.imageUrl || art.image || "https://via.placeholder.com/400x300?text=No+Image";
 
+  // ✅ Only show live auction badge if actually active
+  const auctionIsActive = art.isAuction &&
+    !art.isSold &&
+    art.status === "approved" &&
+    (!art.auctionEndTime || new Date() < new Date(art.auctionEndTime));
+
   return (
     <div
       onClick={handleClick}
-      className="bg-[#1e1e38] rounded-xl overflow-hidden border border-gray-800 cursor-pointer hover:border-[#6c3483] hover:scale-[1.02] transition-all duration-300 shadow-lg group"
+      className="bg-[#1e1e38] rounded-xl overflow-hidden border border-gray-800 cursor-pointer hover:border-[#6c3483] hover:scale-[1.02] transition-all duration-300 shadow-lg group fade-up"
     >
       <div className="relative">
         <img
@@ -57,7 +70,8 @@ const ArtCard = ({ art, onAdmireToggle }) => {
         )}
 
         <div className="absolute top-2 left-2 flex gap-1 flex-wrap">
-          {art.isAuction && !art.isSold && <StatusBadge status="auction" />}
+          {/* ✅ Only show auction badge if actually live */}
+          {auctionIsActive && <StatusBadge status="auction" />}
           {art.exhibitionType === "view-only" && <StatusBadge status="view-only" />}
           {art.exhibitionType === "hybrid" && <StatusBadge status="hybrid" />}
         </div>
@@ -80,8 +94,10 @@ const ArtCard = ({ art, onAdmireToggle }) => {
 
         <div className="flex items-center justify-between pt-1">
           {art.isSold ? (
-            <span className="text-red-400 font-bold">Sold for ${art.soldPrice}</span>
-          ) : art.isAuction ? (
+            <span className="text-red-400 font-bold text-sm">
+              Sold {art.soldWhere ? `(${art.soldWhere})` : ""} — ${art.soldPrice}
+            </span>
+          ) : auctionIsActive ? (
             <div className="flex flex-col gap-1 w-full">
               <span className="text-green-400 font-bold text-sm flex items-center gap-1">
                 <span className="w-2 h-2 rounded-full bg-green-400 animate-pulse inline-block" />
@@ -96,7 +112,7 @@ const ArtCard = ({ art, onAdmireToggle }) => {
             <span className="text-white font-bold">${art.price}</span>
           )}
 
-          {!art.isAuction && (
+          {!auctionIsActive && !art.isSold && (
             <span className="text-gray-500 text-xs">♥ {art.admirers?.length || 0}</span>
           )}
         </div>

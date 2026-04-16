@@ -18,8 +18,10 @@ const Navbar = () => {
     return "/";
   };
 
+  // ✅ Added Auctions to nav links
   const navLinks = [
     { label: "Browse",      path: "/browse" },
+    { label: "Auctions",    path: "/auctions" },
     { label: "Exhibitions", path: "/exhibitions" },
     { label: "Artists",     path: "/artists" },
   ];
@@ -31,20 +33,12 @@ const Navbar = () => {
     >
       <div className="max-w-7xl mx-auto px-4 py-4 flex items-center justify-between gap-4">
 
-        {/* Logo */}
-        <button
-          onClick={() => navigate("/")}
-          className="flex-shrink-0"
-        >
-          <span
-            className="text-2xl font-black text-[#6c3483]"
-            style={{ fontFamily: "Georgia, serif" }}
-          >
+        <button onClick={() => navigate("/")} className="flex-shrink-0">
+          <span className="text-2xl font-black text-[#6c3483]" style={{ fontFamily: "Georgia, serif" }}>
             ArtSphere
           </span>
         </button>
 
-        {/* Desktop nav links */}
         <div className="hidden md:flex items-center gap-1">
           {navLinks.map(link => (
             <button
@@ -61,13 +55,10 @@ const Navbar = () => {
           ))}
         </div>
 
-        {/* Right side */}
         <div className="hidden md:flex items-center gap-3">
           {user ? (
             <>
               <NotificationBell />
-
-              {/* Dashboard button */}
               <button
                 onClick={() => navigate(getDashboardPath())}
                 className={`px-4 py-2 rounded-lg text-sm font-bold transition ${
@@ -80,8 +71,6 @@ const Navbar = () => {
               >
                 Dashboard
               </button>
-
-              {/* Profile button */}
               <button
                 onClick={() => navigate("/profile")}
                 className={`px-4 py-2 rounded-lg text-sm font-bold transition ${
@@ -92,21 +81,13 @@ const Navbar = () => {
               >
                 Profile
               </button>
-
-              {/* User avatar + name */}
               <div className="flex items-center gap-2 px-3 py-2 bg-[#1e1e38] border border-gray-800 rounded-lg">
                 <div className="w-7 h-7 rounded-full bg-[#6c3483]/40 border border-[#6c3483] flex items-center justify-center text-xs font-black text-[#6c3483]">
                   {user.name?.charAt(0).toUpperCase()}
                 </div>
-                <span className="text-white text-sm font-bold max-w-[100px] truncate">
-                  {user.name}
-                </span>
-                <span className="text-gray-600 text-xs capitalize">
-                  {user.role}
-                </span>
+                <span className="text-white text-sm font-bold max-w-[100px] truncate">{user.name}</span>
+                <span className="text-gray-600 text-xs capitalize">{user.role}</span>
               </div>
-
-              {/* Logout */}
               <button
                 onClick={logout}
                 className="px-4 py-2 rounded-lg text-sm font-bold text-gray-400 border border-gray-700 hover:border-red-700 hover:text-red-400 transition"
@@ -132,23 +113,15 @@ const Navbar = () => {
           )}
         </div>
 
-        {/* Mobile hamburger */}
-        <button
-          onClick={() => setMenuOpen(!menuOpen)}
-          className="md:hidden flex flex-col gap-1.5 p-2"
-        >
+        <button onClick={() => setMenuOpen(!menuOpen)} className="md:hidden flex flex-col gap-1.5 p-2">
           <span className={`block w-6 h-0.5 bg-white transition-all duration-300 ${menuOpen ? "rotate-45 translate-y-2" : ""}`} />
           <span className={`block w-6 h-0.5 bg-white transition-all duration-300 ${menuOpen ? "opacity-0" : ""}`} />
           <span className={`block w-6 h-0.5 bg-white transition-all duration-300 ${menuOpen ? "-rotate-45 -translate-y-2" : ""}`} />
         </button>
       </div>
 
-      {/* Mobile menu */}
       {menuOpen && (
-        <div
-          className="md:hidden border-t border-gray-800 px-4 py-4 space-y-2"
-          style={{ background: "rgba(10,10,26,0.98)" }}
-        >
+        <div className="md:hidden border-t border-gray-800 px-4 py-4 space-y-2" style={{ background: "rgba(10,10,26,0.98)" }}>
           {navLinks.map(link => (
             <button
               key={link.path}
@@ -162,23 +135,16 @@ const Navbar = () => {
               {link.label}
             </button>
           ))}
-
           {user ? (
             <>
-              <button
-                onClick={() => { navigate(getDashboardPath()); setMenuOpen(false); }}
-                className="w-full text-left px-4 py-3 rounded-lg text-sm font-bold text-gray-400 hover:text-white hover:bg-white/5 transition"
-              >
+              <button onClick={() => { navigate(getDashboardPath()); setMenuOpen(false); }}
+                className="w-full text-left px-4 py-3 rounded-lg text-sm font-bold text-gray-400 hover:text-white hover:bg-white/5 transition">
                 Dashboard
               </button>
-              <button
-                onClick={() => { navigate("/profile"); setMenuOpen(false); }}
-                className="w-full text-left px-4 py-3 rounded-lg text-sm font-bold text-gray-400 hover:text-white hover:bg-white/5 transition"
-              >
+              <button onClick={() => { navigate("/profile"); setMenuOpen(false); }}
+                className="w-full text-left px-4 py-3 rounded-lg text-sm font-bold text-gray-400 hover:text-white hover:bg-white/5 transition">
                 Profile
               </button>
-
-              {/* Mobile user info */}
               <div className="flex items-center gap-3 px-4 py-3 bg-[#1e1e38] border border-gray-800 rounded-lg">
                 <div className="w-8 h-8 rounded-full bg-[#6c3483]/40 border border-[#6c3483] flex items-center justify-center text-sm font-black text-[#6c3483]">
                   {user.name?.charAt(0).toUpperCase()}
@@ -188,26 +154,19 @@ const Navbar = () => {
                   <p className="text-gray-500 text-xs capitalize">{user.role}</p>
                 </div>
               </div>
-
-              <button
-                onClick={() => { logout(); setMenuOpen(false); }}
-                className="w-full text-left px-4 py-3 rounded-lg text-sm font-bold text-red-400 hover:bg-red-900/20 transition"
-              >
+              <button onClick={() => { logout(); setMenuOpen(false); }}
+                className="w-full text-left px-4 py-3 rounded-lg text-sm font-bold text-red-400 hover:bg-red-900/20 transition">
                 Logout
               </button>
             </>
           ) : (
             <>
-              <button
-                onClick={() => { navigate("/login"); setMenuOpen(false); }}
-                className="w-full text-left px-4 py-3 rounded-lg text-sm font-bold text-gray-400 hover:text-white hover:bg-white/5 transition"
-              >
+              <button onClick={() => { navigate("/login"); setMenuOpen(false); }}
+                className="w-full text-left px-4 py-3 rounded-lg text-sm font-bold text-gray-400 hover:text-white hover:bg-white/5 transition">
                 Login
               </button>
-              <button
-                onClick={() => { navigate("/register"); setMenuOpen(false); }}
-                className="w-full text-left px-4 py-3 rounded-lg text-sm font-bold bg-[#6c3483] text-white rounded-lg hover:bg-opacity-90 transition"
-              >
+              <button onClick={() => { navigate("/register"); setMenuOpen(false); }}
+                className="w-full text-left px-4 py-3 rounded-lg text-sm font-bold bg-[#6c3483] text-white hover:bg-opacity-90 transition">
                 Register
               </button>
             </>

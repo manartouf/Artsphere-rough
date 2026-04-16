@@ -1,12 +1,13 @@
 import express from "express";
 import Exhibition from "../models/Exhibition.js";
+import Art from "../models/Art.js";
 import User from "../models/User.js";
 import { protect } from "../middleware/authMiddleware.js";
 import adminOnly from "../middleware/adminMiddleware.js";
 
 const router = express.Router();
 
-/* ---------------- CREATE EXHIBITION — goes live immediately ---------------- */
+// CREATE EXHIBITION
 router.post("/", protect, async (req, res) => {
   try {
     if (req.user.role !== "artist") {
@@ -14,6 +15,30 @@ router.post("/", protect, async (req, res) => {
     }
 
     const { title, description, artworks, startDate, endDate } = req.body;
+    const artistId = String(req.user._id || req.user.id);
+
+    const artDocs = await Art.find({ _id: { $in: artworks } });
+    for (const art of artDocs) {
+      if (String(art.artist) !== artistId) {
+        return res.status(403).json({ message: "You can only add your own artworks to an exhibition" });
+      }
+      if (art.isSold) {
+        return res.status(400).json({
+          message: `"${art.title}" has already been sold and cannot be added to an exhibition`
+        });
+      }
+      if (art.isAuction && art.status === "approved") {
+        return res.status(400).json({
+          message: `"${art.title}" is currently in an active auction and cannot be added to an exhibition`
+        });
+      }
+      // ✅ Block if artwork is in a live exhibition
+      if (art.inExhibition) {
+        return res.status(400).json({
+          message: `"${art.title}" is currently in a live exhibition`
+        });
+      }
+    }
 
     const exhibition = await Exhibition.create({
       title,
@@ -25,7 +50,12 @@ router.post("/", protect, async (req, res) => {
       status: "active",
     });
 
-    // Notify followers
+    // ✅ Mark artworks as in exhibition
+    await Art.updateMany(
+      { _id: { $in: artworks } },
+      { inExhibition: true }
+    );
+
     const artist = await User.findById(req.user.id);
     if (artist && artist.followers.length > 0) {
       await User.updateMany(
@@ -46,13 +76,14 @@ router.post("/", protect, async (req, res) => {
   }
 });
 
-/* ---------------- GET ALL APPROVED + ACTIVE EXHIBITIONS ---------------- */
+// GET ALL APPROVED + ACTIVE EXHIBITIONS
 router.get("/", async (req, res) => {
   try {
     const exhibitions = await Exhibition.find({
       status: { $in: ["approved", "active"] }
     })
-      .populate("artworks")
+      // ✅ FIX: populate artworks with their artist so name shows correctly
+      .populate({ path: "artworks", populate: { path: "artist", select: "name" } })
       .populate("createdBy", "name email");
     res.json(exhibitions);
   } catch (error) {
@@ -60,11 +91,12 @@ router.get("/", async (req, res) => {
   }
 });
 
-/* ---------------- GET SINGLE EXHIBITION BY ID ---------------- */
+// GET SINGLE EXHIBITION BY ID
 router.get("/:id", async (req, res) => {
   try {
     const exhibition = await Exhibition.findById(req.params.id)
-      .populate("artworks")
+      // ✅ FIX: populate artworks with their artist so name shows correctly
+      .populate({ path: "artworks", populate: { path: "artist", select: "name" } })
       .populate("createdBy", "name");
     if (!exhibition) return res.status(404).json({ message: "Exhibition not found" });
     res.json(exhibition);
@@ -73,7 +105,7 @@ router.get("/:id", async (req, res) => {
   }
 });
 
-/* ---------------- ADMIN APPROVE EXHIBITION ---------------- */
+// ADMIN APPROVE EXHIBITION
 router.put("/:id/approve", protect, adminOnly, async (req, res) => {
   try {
     const exhibition = await Exhibition.findById(req.params.id);
@@ -86,7 +118,7 @@ router.put("/:id/approve", protect, adminOnly, async (req, res) => {
   }
 });
 
-/* ---------------- ADMIN REJECT EXHIBITION ---------------- */
+// ADMIN REJECT EXHIBITION
 router.put("/:id/reject", protect, adminOnly, async (req, res) => {
   try {
     const exhibition = await Exhibition.findById(req.params.id);
@@ -99,7 +131,7 @@ router.put("/:id/reject", protect, adminOnly, async (req, res) => {
   }
 });
 
-/* ---------------- ARTIST TOGGLE EXHIBITION ON/OFF ---------------- */
+// ARTIST TOGGLE EXHIBITION ON/OFF
 router.put("/:id/toggle", protect, async (req, res) => {
   try {
     const exhibition = await Exhibition.findById(req.params.id);
@@ -107,8 +139,23 @@ router.put("/:id/toggle", protect, async (req, res) => {
     if (exhibition.createdBy.toString() !== req.user.id) {
       return res.status(403).json({ message: "Not authorized" });
     }
-    exhibition.status = exhibition.status === "active" ? "ended" : "active";
+    const newStatus = exhibition.status === "active" ? "ended" : "active";
+    exhibition.status = newStatus;
     await exhibition.save();
+
+    // ✅ When ending exhibition, free artworks from inExhibition flag
+    if (newStatus === "ended") {
+      await Art.updateMany(
+        { _id: { $in: exhibition.artworks } },
+        { inExhibition: false }
+      );
+    } else {
+      await Art.updateMany(
+        { _id: { $in: exhibition.artworks } },
+        { inExhibition: true }
+      );
+    }
+
     res.json(exhibition);
   } catch (error) {
     res.status(500).json({ message: error.message });

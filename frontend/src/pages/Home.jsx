@@ -20,7 +20,7 @@ const Home = () => {
     const fetchData = async () => {
       try {
         const [artRes, exRes] = await Promise.all([
-          API.get("/art"),
+          API.get("/artworks"), // ✅ FIX: was /art
           API.get("/exhibitions"),
         ]);
         setArtworks(artRes.data);
