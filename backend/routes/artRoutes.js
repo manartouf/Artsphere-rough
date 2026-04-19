@@ -143,7 +143,7 @@ router.put("/:id/admire", protect, async (req, res) => {
   }
 });
 
-// PLACE BID — lightning fast, emits bidUpdate + bidToast immediately
+// PLACE BID
 router.post("/:id/bid", protect, async (req, res) => {
   try {
     const { amount } = req.body;
@@ -180,15 +180,15 @@ router.post("/:id/bid", protect, async (req, res) => {
 
     const nextExpectedBid = startPrice + (increment * (art.bids.length + 1));
 
-    // Send response immediately so bidder's UI unblocks
-    res.json({ message: "Bid placed", currentBid: art.currentBid });
+    // Respond to bidder immediately
+    res.json({ message: "Bid placed", currentBid: art.currentBid, nextExpectedBid });
 
-    // Populate bids for emit
+    // Populate bids for socket emit
     const populated = await Art.findById(art._id)
       .populate("bids.bidder", "name")
       .populate("highestBidder", "name");
 
-    // Emit bidUpdate to ALL connected clients instantly
+    // Emit to ALL connected clients instantly
     io.emit("bidUpdate", {
       artId: art._id.toString(),
       currentBid: art.currentBid,
@@ -203,7 +203,7 @@ router.post("/:id/bid", protect, async (req, res) => {
       startingPrice: startPrice,
     });
 
-    // Emit bidToast so OTHER buyers get instant notification
+    // Toast notification for all OTHER buyers
     io.emit("bidToast", {
       artId: art._id.toString(),
       bidderId: bidder._id.toString(),

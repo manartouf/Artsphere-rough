@@ -104,7 +104,7 @@ const Auctions = () => {
               <div
                 key={auction._id}
                 onClick={() => {
-                  if (isLive && firstUnsold) navigate(`/auction/${firstUnsold._id}`);
+                  if (isLive && firstUnsold) navigate(`/auction/${auction._id}`);
                   else if (!isLive && artworks[0]) navigate(`/art/${artworks[0]._id}`);
                 }}
                 className={`bg-[#1e1e38] border rounded-xl overflow-hidden cursor-pointer hover:scale-[1.02] transition-all duration-300 group fade-up ${
